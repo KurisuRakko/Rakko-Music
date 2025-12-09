@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rakko Music Player</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsmediatags/3.9.5/jsmediatags.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            transitionTimingFunction: {
+              'spring': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              'elegant': 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+            },
+            animation: {
+              'spin-slow': 'spin 8s linear infinite',
+              'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+              'breathe-bg': 'breathe 15s ease-in-out infinite alternate',
+              'slide-up-fade': 'slide-up-fade 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards',
+              'scale-fade-in': 'scale-fade-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards',
+              'slide-in-right': 'slide-in-right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+            },
+            keyframes: {
+              breathe: {
+                '0%': { transform: 'scale(1.05)' },
+                '100%': { transform: 'scale(1.15)' },
+              },
+              'slide-up-fade': {
+                '0%': { opacity: '0', transform: 'translateY(20px)' },
+                '100%': { opacity: '1', transform: 'translateY(0)' },
+              },
+              'scale-fade-in': {
+                '0%': { opacity: '0', transform: 'scale(0.92)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              },
+              'slide-in-right': {
+                '0%': { opacity: '0', transform: 'translateX(30px)' },
+                '100%': { opacity: '1', transform: 'translateX(0)' },
+              }
+            },
+            colors: {
+              glass: 'rgba(255, 255, 255, 0.1)',
+              glassBorder: 'rgba(255, 255, 255, 0.2)',
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Custom scrollbar for playlist */
+      ::-webkit-scrollbar {
+        width: 6px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.2);
+        border-radius: 10px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.4);
+      }
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #0f172a;
+      }
+      /* Hide scrollbar for lyrics view but allow scroll */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+    "react/": "https://aistudiocdn.com/react@^19.2.1/",
+    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.556.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
