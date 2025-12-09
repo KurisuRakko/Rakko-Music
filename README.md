@@ -49,44 +49,6 @@ A full-screen aesthetic mode featuring:
 
 ---
 
-##  Installation & Development
-
-```bash
-git clone https://github.com/<your-username>/rakko-music-player.git
-cd rakko-music-player
-npm install
-npm run dev
-Then open:
-http://localhost:5173
-
----
-
-## Project Structure
-src/
-  App.tsx               // Main application controller
-  components/
-    Controls.tsx
-    Playlist.tsx
-    LyricsView.tsx
-    Visualizer.tsx
-    Settings.tsx
-  utils/
-    format.ts
-    lrc.ts
-    audio.ts
-  assets/
-    icons/
-    wallpaper/
-
-
-##Roadmap
-* Touch support for mobile devices
-* Playlist persistence (IndexedDB)
-* Waveform seek bar
-* Advanced equalizer presets
-* Auto-fetch lyrics
-* Multi-theme UI system
-
 License
 Released under the Apache License 2.0.
 Copyright © 2025 
