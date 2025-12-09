@@ -1,6 +1,6 @@
 ![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)
 
-# 🎶 Rakko Music Player
+# 🎶Rakko Music Player
 
 **Rakko Music Player** is a modern, web-based audio player designed with a focus on fluid animations, immersive lyrics, and elegant visual styling.  
 Built with **React 19**, **TypeScript**, and **Tailwind CSS**, the player features glassmorphism UI, physics-based lyric scrolling, and a distraction-free immersive mode.
