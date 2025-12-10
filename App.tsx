@@ -7,7 +7,7 @@ import Playlist from './components/Playlist';
 import Settings from './components/Settings';
 import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album } from 'lucide-react';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album, Maximize, Minimize } from 'lucide-react';
 
 type DesktopViewMode = 'library' | 'lyrics';
 type AppMode = 'standard' | 'immersive' | 'coverflow';
@@ -48,6 +48,7 @@ const App: React.FC = () => {
 
   // Global App Mode
   const [appMode, setAppMode] = useState<AppMode>('standard');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Drag and Drop State
   const [isDragging, setIsDragging] = useState(false);
@@ -63,6 +64,15 @@ const App: React.FC = () => {
       setIsLoading(false);
     }, 2000);
     return () => clearTimeout(timer);
+  }, []);
+
+  // Listen for Fullscreen changes (e.g. Esc key)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   // --- Audio Event Handlers ---
@@ -186,6 +196,16 @@ const App: React.FC = () => {
     const vol = Number(e.target.value);
     audioRef.current.volume = vol;
     setAudioState(prev => ({ ...prev, volume: vol }));
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => {
+        console.error(`Error enabling fullscreen mode: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
   };
 
   const processFiles = async (files: File[]) => {
@@ -457,6 +477,14 @@ const App: React.FC = () => {
             title={isImmersive ? "Exit Immersive Mode" : "Immersive Mode"}
         >
             <ScanEye size={20} />
+        </button>
+        <div className="w-px h-4 bg-white/10 mx-0.5"></div>
+        <button
+            onClick={toggleFullscreen}
+            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isFullscreen ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+        >
+            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
         </button>
       </div>
 
