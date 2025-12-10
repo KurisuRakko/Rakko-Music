@@ -1,10 +1,20 @@
+export interface ParsedMusicInfo {
+  artists: string[];
+  title: string;
+  album: string | null;
+  features: string[];
+  version: string | null;
+  extra: string | null;
+}
+
 export interface Song {
   id: string;
   file: File;
   name: string;
-  artist: string; // Will default to Unknown if not parsed
+  artist: string; // Legacy fallback or joined string
   url: string;
   lyrics?: string;
+  metadata?: ParsedMusicInfo; // Rich metadata
 }
 
 export interface AudioState {

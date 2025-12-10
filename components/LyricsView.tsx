@@ -154,16 +154,8 @@ const LyricsView: React.FC<LyricsViewProps> = ({
 
     return () => {
        clearTimeout(transitionTimeout);
-       // We DO NOT cancel the animation frame here on unmount/dep change immediately 
-       // if we want to preserve momentum across rapid state changes, 
-       // but React cleanup is usually safer. 
-       // For "Interruptible" behavior within the same component instance, 
-       // the check `if (state.isAnimating) return` above handles it.
        if (rafRef.current) {
-           // We actually let it run unless component unmounts? 
-           // No, best to clean up if the component is destroyed.
-           // However, inside useEffect dependency change (activeIndex), 
-           // we intentionally kept the loop running via the check above.
+           // Cleanup handled by state check
        }
     };
   }, [activeIndex, variant]);
@@ -231,6 +223,8 @@ const LyricsView: React.FC<LyricsViewProps> = ({
   };
 
   if (!lyrics) {
+    if (variant === 'immersive') return null;
+
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 animate-scale-fade-in">
          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse-slow">

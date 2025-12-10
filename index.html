@@ -11,8 +11,9 @@
         theme: {
           extend: {
             transitionTimingFunction: {
-              'spring': 'cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              'spring': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
               'elegant': 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+              'bounce-in': 'cubic-bezier(0.68, -0.55, 0.265, 1.55)',
             },
             animation: {
               'spin-slow': 'spin 8s linear infinite',
@@ -21,6 +22,12 @@
               'slide-up-fade': 'slide-up-fade 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards',
               'scale-fade-in': 'scale-fade-in 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards',
               'slide-in-right': 'slide-in-right 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards',
+              'zoom-in': 'zoom-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+              'zoom-out': 'zoom-out 0.2s cubic-bezier(0.4, 0, 0.2, 1) forwards',
+              'fade-in': 'fade-in 0.3s ease-out forwards',
+              'fade-out': 'fade-out 0.3s ease-in forwards',
+              'bounce-sm': 'bounce-sm 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)',
+              'pop-in': 'pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
             },
             keyframes: {
               breathe: {
@@ -38,6 +45,30 @@
               'slide-in-right': {
                 '0%': { opacity: '0', transform: 'translateX(30px)' },
                 '100%': { opacity: '1', transform: 'translateX(0)' },
+              },
+              'zoom-in': {
+                '0%': { opacity: '0', transform: 'scale(0.95)' },
+                '100%': { opacity: '1', transform: 'scale(1)' },
+              },
+              'zoom-out': {
+                '0%': { opacity: '1', transform: 'scale(1)' },
+                '100%': { opacity: '0', transform: 'scale(0.95)' },
+              },
+              'fade-in': {
+                '0%': { opacity: '0' },
+                '100%': { opacity: '1' },
+              },
+              'fade-out': {
+                '0%': { opacity: '1' },
+                '100%': { opacity: '0' },
+              },
+              'bounce-sm': {
+                '0%, 100%': { transform: 'scale(1)' },
+                '50%': { transform: 'scale(0.95)' },
+              },
+              'pop-in': {
+                '0%': { opacity: '0', transform: 'scale(0.9) translateY(10px)' },
+                '100%': { opacity: '1', transform: 'scale(1) translateY(0)' },
               }
             },
             colors: {

@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, AudioState, AppSettings } from './types';
 import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR } from './constants';
-import { formatTime, getFileNameWithoutExtension, extractAlbumArt } from './utils';
+import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics } from './utils';
 import Controls from './components/Controls';
 import Playlist from './components/Playlist';
 import Settings from './components/Settings';
 import LyricsView from './components/LyricsView';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause } from 'lucide-react';
+import CoverFlow from './components/CoverFlow';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album } from 'lucide-react';
 
 type DesktopViewMode = 'library' | 'lyrics';
+type AppMode = 'standard' | 'immersive' | 'coverflow';
 
 const App: React.FC = () => {
   // --- State ---
@@ -31,21 +33,37 @@ const App: React.FC = () => {
     accentColor: DEFAULT_ACCENT_COLOR,
   });
 
+  // Loading State
+  const [isLoading, setIsLoading] = useState(true);
+
   // Mobile drawer state
   const [isMobileLibraryOpen, setIsMobileLibraryOpen] = useState(false);
   // Mobile Lyrics Toggle
   const [isMobileLyricsOpen, setIsMobileLyricsOpen] = useState(false);
 
-  // Desktop View Mode
+  // Desktop View Mode (Right Panel)
   const [desktopViewMode, setDesktopViewMode] = useState<DesktopViewMode>('library');
   
   const [showSettings, setShowSettings] = useState(false);
 
-  // Immersive Mode State
-  const [isImmersive, setIsImmersive] = useState(false);
+  // Global App Mode
+  const [appMode, setAppMode] = useState<AppMode>('standard');
+
+  // Drag and Drop State
+  const [isDragging, setIsDragging] = useState(false);
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(new Audio());
+
+  // --- Effects ---
+  
+  // Simulate App Loading
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, []);
 
   // --- Audio Event Handlers ---
   const handleTimeUpdate = () => {
@@ -170,19 +188,106 @@ const App: React.FC = () => {
     setAudioState(prev => ({ ...prev, volume: vol }));
   };
 
+  const processFiles = async (files: File[]) => {
+    if (files.length === 0) return;
+
+    // 1. Separate Audio and Lyrics files
+    const audioFiles = files.filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|m4a|weba)$/i.test(f.name));
+    const lrcFiles = files.filter(f => /\.(lrc|txt)$/i.test(f.name));
+
+    // 2. Process New Songs
+    const newSongs: Song[] = audioFiles.map((file) => {
+      const rawName = getFileNameWithoutExtension(file.name);
+      const info = parseMusicInfo(rawName);
+
+      // Fallback for artist if parser returns empty
+      const artistDisplay = info.artists.length > 0 ? info.artists.join(', ') : 'Unknown Artist';
+
+      return {
+        id: Math.random().toString(36).substr(2, 9),
+        file,
+        name: info.title,
+        artist: artistDisplay,
+        metadata: info,
+        url: URL.createObjectURL(file)
+      };
+    });
+
+    // 3. Read Lyrics Content
+    const lrcContents: { name: string, content: string }[] = [];
+    await Promise.all(lrcFiles.map(async (f) => {
+       try {
+         const text = await readFileAsText(f);
+         lrcContents.push({ name: f.name, content: text });
+       } catch (err) {
+         console.error("Failed to read lyric file:", f.name, err);
+       }
+    }));
+
+    // 4. Match Lyrics using Advanced Matcher (One-to-One)
+    const matches = matchLyrics(newSongs, lrcContents);
+    
+    // Apply matches to new songs
+    newSongs.forEach(song => {
+       if (matches[song.id]) {
+           song.lyrics = matches[song.id];
+       }
+    });
+
+    // 5. Update State (Merge with existing)
+    setSongs(prevSongs => {
+        // Also check if any new lyric files match EXISTING songs that don't have lyrics
+        const songsWithoutLyrics = prevSongs.filter(s => !s.lyrics);
+        const songsWithLyrics = prevSongs.filter(s => !!s.lyrics);
+        
+        if (songsWithoutLyrics.length > 0) {
+             const existingMatches = matchLyrics(songsWithoutLyrics, lrcContents);
+             songsWithoutLyrics.forEach(s => {
+                 if (existingMatches[s.id]) {
+                     s.lyrics = existingMatches[s.id];
+                 }
+             });
+        }
+        
+        return [...songsWithLyrics, ...songsWithoutLyrics, ...newSongs];
+    });
+
+    // Update current song if it got modified in the process
+    if (currentSong) {
+       const currentSongMatch = matchLyrics([currentSong], lrcContents);
+       if (currentSongMatch[currentSong.id]) {
+           setCurrentSong(prev => prev ? { ...prev, lyrics: currentSongMatch[currentSong.id] } : null);
+       }
+    }
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const newSongs: Song[] = Array.from(e.target.files).map((item) => {
-        const file = item as File;
-        return {
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          name: getFileNameWithoutExtension(file.name),
-          artist: 'Local Track',
-          url: URL.createObjectURL(file)
-        };
-      });
-      setSongs(prev => [...prev, ...newSongs]);
+      processFiles(Array.from(e.target.files));
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're leaving the main container or window
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    if (e.dataTransfer.files) {
+      processFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -231,14 +336,50 @@ const App: React.FC = () => {
       setDesktopViewMode(mode);
   };
 
+  const isImmersive = appMode === 'immersive';
+  const isCoverFlow = appMode === 'coverflow';
+  const isStandard = appMode === 'standard';
+
   return (
-    <div className="relative w-screen h-screen overflow-hidden flex font-sans text-white select-none bg-black">
+    <div 
+      className="relative w-screen h-screen overflow-hidden flex font-sans text-white select-none bg-black"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       
+      {/* === LOADING SCREEN === */}
+      <div 
+        className={`fixed inset-0 z-[9999] bg-[#020202] flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] ${isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none scale-110'}`}
+      >
+        <div className="relative flex items-center justify-center">
+             {/* Decorative Rings */}
+             <div className="absolute w-64 h-64 rounded-full border border-white/5 animate-[spin_12s_linear_infinite]"></div>
+             <div className="absolute w-48 h-48 rounded-full border border-t-transparent border-l-transparent border-r-white/10 border-b-white/10 animate-[spin_8s_linear_infinite_reverse]"></div>
+
+             {/* Main Logo Container */}
+             <div className="w-24 h-24 bg-white/5 backdrop-blur-2xl rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.05)] border border-white/10 relative overflow-hidden group">
+                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                 <Music2 size={40} className="relative z-10 animate-pulse-slow" style={{ color: settings.accentColor }} />
+             </div>
+        </div>
+
+        <div className="mt-12 flex flex-col items-center gap-4">
+             <h1 className="text-xl font-medium tracking-[0.4em] text-white/90 pl-1">RAKKO</h1>
+             {/* Equalizer Loading Animation */}
+             <div className="flex gap-1.5 h-6 items-end">
+                <div className="w-1 bg-white/40 rounded-full animate-[bounce_1s_infinite] h-2" style={{ animationDelay: '0ms' }}></div>
+                <div className="w-1 bg-white/60 rounded-full animate-[bounce_1s_infinite] h-4" style={{ animationDelay: '150ms' }}></div>
+                <div className="w-1 bg-white/40 rounded-full animate-[bounce_1s_infinite] h-3" style={{ animationDelay: '300ms' }}></div>
+             </div>
+        </div>
+      </div>
+
       {/* === BACKGROUND LAYER === */}
       <div className="absolute inset-0 z-0 overflow-hidden">
          {/* Normal Mode Background (Blurry Album Art) */}
          <div 
-           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
+           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${!isStandard ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
            style={{
              backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
              filter: 'blur(30px) brightness(0.7)',
@@ -254,38 +395,95 @@ const App: React.FC = () => {
            }}
          />
          
+         {/* CoverFlow Mode Background (Darkened Wallpaper) */}
+         <div 
+           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isCoverFlow ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
+           style={{
+             backgroundImage: `url(${settings.wallpaper})`,
+             filter: 'brightness(0.3)', 
+           }}
+         />
+         
          <div className="absolute inset-0 bg-black/10" />
       </div>
 
+      {/* === DRAG OVERLAY (Animation Spot #5) === */}
+      {isDragging && (
+        <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center animate-fade-in transition-all duration-300 pointer-events-none">
+          <div className="p-16 rounded-[3rem] bg-white/5 border-4 border-dashed border-white/20 text-center animate-pop-in transform transition-transform shadow-2xl backdrop-blur-xl">
+             <div className="w-32 h-32 bg-gradient-to-tr from-white/10 to-transparent rounded-full flex items-center justify-center mx-auto mb-8 text-white animate-bounce-sm shadow-[0_0_40px_rgba(255,255,255,0.1)]">
+                <Upload size={64} style={{ color: settings.accentColor }} />
+             </div>
+             <h2 className="text-4xl font-bold text-white mb-4 tracking-tight">Drop to Import</h2>
+             <div className="flex justify-center gap-8 text-white/50 text-sm font-medium uppercase tracking-widest">
+                <span className="flex items-center gap-2"><Music2 size={16}/> Audio</span>
+                <span className="flex items-center gap-2"><FileMusic size={16}/> Lyrics</span>
+             </div>
+          </div>
+        </div>
+      )}
+
+      {/* === COVER FLOW FULLSCREEN OVERLAY === */}
+      {isCoverFlow && (
+          <CoverFlow 
+            songs={songs}
+            currentSong={currentSong}
+            isPlaying={audioState.isPlaying}
+            onSelect={(song) => {
+               setCurrentSong(song);
+               setAudioState(p => ({ ...p, isPlaying: true }));
+            }}
+            onPlayPause={togglePlayPause}
+            onNext={playNext}
+            onPrev={playPrev}
+            onClose={() => setAppMode('standard')}
+            accentColor={settings.accentColor}
+          />
+      )}
+
+      {/* === FLOATING MODE CONTROLS (Always on Top) === */}
+      <div className="fixed top-20 right-6 md:top-6 md:right-6 z-[200] flex items-center gap-2 p-1.5 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-fade-in transition-all duration-300">
+        <button
+            onClick={() => setAppMode(isCoverFlow ? 'standard' : 'coverflow')}
+            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isCoverFlow ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+            title={isCoverFlow ? "Exit PrismFlow" : "PrismFlow"}
+        >
+            <Album size={20} />
+        </button>
+        <div className="w-px h-4 bg-white/10 mx-0.5"></div>
+        <button
+            onClick={() => setAppMode(isImmersive ? 'standard' : 'immersive')}
+            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isImmersive ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+            title={isImmersive ? "Exit Immersive Mode" : "Immersive Mode"}
+        >
+            <ScanEye size={20} />
+        </button>
+      </div>
+
       {/* === MAIN LAYOUT CONTAINER === */}
-      {/* 
-          We use a flex layout for standard view, but when immersive is active, 
-          we visually transform the components using absolute positioning or translation logic 
-          handled via classes to ensure a smooth Morph.
-      */}
-      <div className="relative z-10 w-full h-full flex flex-col md:flex-row">
+      <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${isCoverFlow ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         
         {/* === LEFT PANEL: Player === */}
         <div className={`
              transition-all duration-1000 ease-elegant z-20 flex flex-col justify-center
              ${isImmersive 
-                ? 'absolute bottom-12 left-12 w-[30vw] min-w-[300px] max-w-[400px] h-auto bg-black/40 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-2xl items-start' 
+                ? 'absolute bottom-12 left-12 w-[30vw] min-w-[300px] max-w-[400px] h-auto bg-black/40 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-2xl items-start group hover:bg-black/50' 
                 : 'relative flex-1 md:w-1/2 items-center p-6 md:p-12 h-full'
              }
         `}>
             {/* Logo Header (Normal Mode Only) */}
             <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               <div className="flex items-center gap-2 text-white/90">
-                  <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md`}>
+                  <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md shadow-inner`}>
                     <Music2 size={20} style={{ color: settings.accentColor }} />
                   </div>
                   <span className="font-bold tracking-wider text-sm uppercase">Rakko Player</span>
               </div>
               <div className="flex md:hidden gap-2">
-                 <button onClick={() => setIsMobileLyricsOpen(!isMobileLyricsOpen)} className="p-3 bg-white/5 rounded-full backdrop-blur-md text-white/80">
+                 <button onClick={() => setIsMobileLyricsOpen(!isMobileLyricsOpen)} className="p-3 bg-white/5 rounded-full backdrop-blur-md text-white/80 active:scale-90 transition-transform">
                     <Mic2 size={20} style={{ color: isMobileLyricsOpen ? settings.accentColor : undefined }}/>
                  </button>
-                 <button onClick={() => setIsMobileLibraryOpen(true)} className="p-3 bg-white/5 rounded-full backdrop-blur-md text-white/80">
+                 <button onClick={() => setIsMobileLibraryOpen(true)} className="p-3 bg-white/5 rounded-full backdrop-blur-md text-white/80 active:scale-90 transition-transform">
                     <ListMusic size={20} />
                  </button>
               </div>
@@ -300,10 +498,10 @@ const App: React.FC = () => {
                {/* Album Art */}
                <div className={`
                    relative transition-all duration-1000 ease-elegant shadow-2xl
-                   ${isImmersive ? 'w-16 h-16 rounded-lg mb-0 flex-shrink-0' : 'w-full max-w-md aspect-square rounded-[2.5rem] mb-12'}
+                   ${isImmersive ? 'w-16 h-16 rounded-lg mb-0 flex-shrink-0' : 'w-full max-w-md aspect-square rounded-[2.5rem] mb-12 hover:scale-[1.02]'}
                `}>
                    {/* Glow (Normal Mode Only) */}
-                   <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ${isImmersive ? 'opacity-0' : 'opacity-40'}`} style={{ backgroundColor: settings.accentColor }}></div>
+                   <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ${isImmersive ? 'opacity-0' : 'opacity-40 animate-pulse-slow'}`} style={{ backgroundColor: settings.accentColor }}></div>
                    
                    <div className={`w-full h-full overflow-hidden border border-white/10 bg-black/20 relative z-10 transition-all duration-1000 ${isImmersive ? 'rounded-lg' : 'rounded-[2rem] md:rounded-[2.5rem]'}`}>
                        {currentSong ? (
@@ -326,18 +524,35 @@ const App: React.FC = () => {
 
                {/* Track Info */}
                <div className={`transition-all duration-1000 ease-elegant flex flex-col ${isImmersive ? 'text-left items-start flex-1 overflow-hidden' : 'text-center items-center w-full mb-8'}`}>
-                 <h1 className={`font-bold text-white drop-shadow-lg truncate w-full transition-all duration-1000 ${isImmersive ? 'text-lg' : 'text-2xl md:text-4xl'}`}>
-                   {currentSong?.name || "Ready to Play"}
-                 </h1>
-                 <p className={`font-medium truncate w-full transition-all duration-1000 ${isImmersive ? 'text-sm text-white/60' : 'text-lg text-white/60'}`}>
-                   {currentSong?.artist || "Rakko Music"}
-                 </p>
+                 <div className="flex items-center gap-2 justify-center w-full">
+                    <h1 className={`font-bold text-white drop-shadow-lg truncate transition-all duration-1000 ${isImmersive ? 'text-lg w-full text-left' : 'text-2xl md:text-4xl max-w-full'}`}>
+                        {currentSong?.metadata?.title || currentSong?.name || "Ready to Play"}
+                    </h1>
+                    {/* Version Badge (Normal Mode) */}
+                    {!isImmersive && currentSong?.metadata?.version && (
+                        <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white/90 border border-white/10 whitespace-nowrap">
+                            {currentSong.metadata.version}
+                        </span>
+                    )}
+                 </div>
+                 
+                 <div className={`flex items-center gap-2 truncate w-full transition-all duration-1000 ${isImmersive ? 'justify-start' : 'justify-center'}`}>
+                     <p className={`font-medium ${isImmersive ? 'text-sm text-white/60' : 'text-lg text-white/60'}`}>
+                        {currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "Rakko Music"}
+                     </p>
+                     {/* Features */}
+                     {currentSong?.metadata?.features && currentSong.metadata.features.length > 0 && (
+                         <span className={`text-white/40 ${isImmersive ? 'text-xs' : 'text-base'}`}>
+                            ft. {currentSong.metadata.features.join(', ')}
+                         </span>
+                     )}
+                 </div>
                </div>
 
                {/* Immersive Mini Play Button */}
                <button 
                   onClick={togglePlayPause}
-                  className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-elegant ${isImmersive ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
+                  className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
                >
                   {audioState.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
                </button>
@@ -365,35 +580,29 @@ const App: React.FC = () => {
         <div className={`
            flex flex-col relative z-10 transition-all duration-1000 ease-elegant
            ${isImmersive 
-              ? 'w-full h-full fixed inset-0 pl-0 md:pl-[35%] bg-transparent' // Occupy full screen, but pad left to avoid player
+              ? 'w-full h-full fixed inset-0 pl-0 md:pl-[35%] bg-transparent' 
               : 'md:w-1/2 bg-black/20 backdrop-blur-xl md:backdrop-blur-none border-l border-white/5'
            }
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
            {/* Right Header (Desktop Actions) */}
            <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50`}>
-               <button onClick={() => setIsMobileLibraryOpen(false)} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>Close</button>
+               <button onClick={() => {
+                   setIsMobileLibraryOpen(false);
+               }} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+                   Close
+               </button>
 
                <div className={`hidden md:flex bg-black/20 p-1 rounded-full backdrop-blur-md border border-white/5 transition-all duration-500 ${isImmersive ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`}>
-                   <button onClick={() => toggleDesktopView('library')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'library' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>Library</button>
-                   <button onClick={() => toggleDesktopView('lyrics')} className={`px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'lyrics' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>Lyrics</button>
+                   <button onClick={() => toggleDesktopView('library')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'library' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
+                      <ListMusic size={14} /> Library
+                   </button>
+                   <button onClick={() => toggleDesktopView('lyrics')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'lyrics' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
+                      <Mic2 size={14} /> Lyrics
+                   </button>
                </div>
 
-               <div className="flex gap-4 items-center">
-                   {/* Settings */}
-                   <button onClick={() => setShowSettings(true)} className="p-3 hover:bg-white/10 rounded-full transition-colors text-white/40 hover:text-white" title="Settings">
-                      <SettingsIcon size={20} />
-                   </button>
-                   
-                   {/* Immersive Toggle */}
-                   <button 
-                      onClick={() => setIsImmersive(!isImmersive)}
-                      className={`p-3 rounded-full transition-all duration-300 backdrop-blur-md shadow-lg group ${isImmersive ? 'bg-white text-black hover:scale-110' : 'bg-white/10 text-white hover:bg-white hover:text-black'}`}
-                      title={isImmersive ? "Exit Immersive Mode" : "Enter Immersive Mode"}
-                   >
-                      <ScanEye size={20} />
-                   </button>
-               </div>
+               {/* (Old Button Location was here) */}
            </div>
 
            {/* Content Area */}
@@ -430,6 +639,15 @@ const App: React.FC = () => {
                  </div>
               </div>
            </div>
+
+           {/* Settings Button */}
+           <button 
+               onClick={() => setShowSettings(true)} 
+               className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}
+               title="Settings"
+           >
+              <SettingsIcon size={20} />
+           </button>
         </div>
 
         {/* Settings Modal */}

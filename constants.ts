@@ -1,3 +1,3 @@
-export const WALLPAPER_URL = "https://static.rakko.cn/tokito1.png";
+export const WALLPAPER_URL = "https://github.com/KurisuRakko/picx-images-hosting/raw/master/black2.8z6z8frkf9.webp";
 export const DEFAULT_ALBUM_ART = "https://picsum.photos/400/400";
 export const DEFAULT_ACCENT_COLOR = "#ec4899";
