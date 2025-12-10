@@ -7,7 +7,7 @@ import Playlist from './components/Playlist';
 import Settings from './components/Settings';
 import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album, Maximize, Minimize } from 'lucide-react';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album, Maximize, Minimize, Image as ImageIcon } from 'lucide-react';
 
 type DesktopViewMode = 'library' | 'lyrics';
 type AppMode = 'standard' | 'immersive' | 'coverflow';
@@ -49,6 +49,9 @@ const App: React.FC = () => {
   // Global App Mode
   const [appMode, setAppMode] = useState<AppMode>('standard');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Prism View Background Toggle
+  const [showPrismBg, setShowPrismBg] = useState(true);
 
   // Drag and Drop State
   const [isDragging, setIsDragging] = useState(false);
@@ -411,13 +414,13 @@ const App: React.FC = () => {
            className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
            style={{
              backgroundImage: `url(${settings.wallpaper})`,
-             filter: 'brightness(0.6)', 
+             filter: 'brightness(1)', 
            }}
          />
          
          {/* CoverFlow Mode Background (Darkened Wallpaper) */}
          <div 
-           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isCoverFlow ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
+           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isCoverFlow && showPrismBg ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
            style={{
              backgroundImage: `url(${settings.wallpaper})`,
              filter: 'brightness(0.3)', 
@@ -458,11 +461,27 @@ const App: React.FC = () => {
             onPrev={playPrev}
             onClose={() => setAppMode('standard')}
             accentColor={settings.accentColor}
+            showBackground={showPrismBg}
           />
       )}
 
       {/* === FLOATING MODE CONTROLS (Always on Top) === */}
       <div className="fixed top-20 right-6 md:top-6 md:right-6 z-[200] flex items-center gap-2 p-1.5 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-fade-in transition-all duration-300">
+        
+        {/* Background Toggle (Only for PrismView) */}
+        {isCoverFlow && (
+            <>
+            <button 
+                onClick={() => setShowPrismBg(!showPrismBg)}
+                className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${showPrismBg ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
+                title={showPrismBg ? "Hide Background" : "Show Background"}
+            >
+                <ImageIcon size={20} />
+            </button>
+            <div className="w-px h-4 bg-white/10 mx-0.5"></div>
+            </>
+        )}
+
         <button
             onClick={() => setAppMode(isCoverFlow ? 'standard' : 'coverflow')}
             className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isCoverFlow ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}

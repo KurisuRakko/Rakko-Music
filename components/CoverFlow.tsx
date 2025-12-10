@@ -13,6 +13,7 @@ interface CoverFlowProps {
   onPrev: () => void;
   onClose: () => void;
   accentColor: string;
+  showBackground: boolean;
 }
 
 const COVER_SIZE = 360; 
@@ -104,7 +105,8 @@ const CoverFlow: React.FC<CoverFlowProps> = ({
   onNext,
   onPrev,
   onClose,
-  accentColor 
+  accentColor,
+  showBackground
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [internalIndex, setInternalIndex] = useState(0);
@@ -252,7 +254,7 @@ const CoverFlow: React.FC<CoverFlowProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 z-[100] w-full h-full flex flex-col items-center justify-center overflow-hidden bg-black/80 backdrop-blur-2xl animate-fade-in touch-none"
+      className={`fixed inset-0 z-[100] w-full h-full flex flex-col items-center justify-center overflow-hidden transition-all duration-700 animate-fade-in touch-none ${showBackground ? 'bg-black/30 backdrop-blur-sm' : 'bg-[#080808] backdrop-blur-none'}`}
       onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
