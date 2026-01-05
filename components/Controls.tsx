@@ -15,89 +15,7 @@ interface ControlsProps {
   accentColor: string;
 }
 
-// 1. Custom Slider Component for better UI (Animation Spot #1 & #2)
-const CustomSlider = ({ 
-  value, 
-  max, 
-  onChange, 
-  accentColor,
-  tooltipFormatter,
-  className = "" 
-}: { 
-  value: number; 
-  max: number; 
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; 
-  accentColor: string;
-  tooltipFormatter?: (val: number) => string;
-  className?: string;
-}) => {
-  const percentage = max > 0 ? (value / max) * 100 : 0;
-  
-  const [previewValue, setPreviewValue] = useState<number | null>(null);
-  const [previewLeft, setPreviewLeft] = useState<number>(0);
-  const trackRef = useRef<HTMLDivElement>(null);
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!tooltipFormatter || !trackRef.current) return;
-    const rect = trackRef.current.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const perc = Math.max(0, Math.min(1, x / rect.width));
-    setPreviewValue(perc * max);
-    setPreviewLeft(perc * 100);
-  };
-
-  const handleMouseLeave = () => {
-    setPreviewValue(null);
-  };
-  
-  return (
-    <div 
-      ref={trackRef}
-      className={`group relative flex items-center h-4 cursor-pointer touch-none ${className}`}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-    >
-      {/* Background Track */}
-      <div className="absolute w-full h-1 bg-white/10 rounded-full overflow-hidden backdrop-blur-sm group-hover:h-1.5 transition-all duration-300 ease-spring"></div>
-      
-      {/* Active Track (Fill) */}
-      <div 
-        className="absolute h-1 left-0 rounded-full group-hover:h-1.5 transition-all duration-300 ease-spring"
-        style={{ width: `${percentage}%`, backgroundColor: accentColor }}
-      >
-      </div>
-
-      {/* Thumb (Glow & Handle) */}
-      <div 
-        className="absolute h-3 w-3 bg-white rounded-full shadow-[0_0_15px_rgba(255,255,255,0.8)] opacity-0 group-hover:opacity-100 scale-0 group-hover:scale-100 transition-all duration-300 ease-spring -translate-x-1.5"
-        style={{ left: `${percentage}%` }}
-      ></div>
-
-      {/* Tooltip */}
-      {previewValue !== null && tooltipFormatter && (
-        <div 
-            className="absolute bottom-full mb-3 px-2 py-1 bg-white/90 text-black text-[10px] font-bold rounded transform -translate-x-1/2 pointer-events-none shadow-xl z-30 animate-fade-in backdrop-blur-sm"
-            style={{ left: `${previewLeft}%` }}
-        >
-            {tooltipFormatter(previewValue)}
-            {/* Arrow */}
-            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-px border-4 border-transparent border-t-white/90"></div>
-        </div>
-      )}
-      
-      {/* Actual Input (Invisible) */}
-      <input
-        type="range"
-        min={0}
-        max={max}
-        step={0.01}
-        value={value}
-        onChange={onChange}
-        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-      />
-    </div>
-  );
-};
+import { CustomSlider } from './ui/CustomSlider';
 
 const Controls: React.FC<ControlsProps> = ({
   audioState,
@@ -113,10 +31,10 @@ const Controls: React.FC<ControlsProps> = ({
 }) => {
   return (
     <div className="flex flex-col gap-6 w-full max-w-2xl mx-auto z-20 px-2">
-      
+
       {/* Progress Bar Area */}
       <div className="flex flex-col gap-1 w-full group">
-        <CustomSlider 
+        <CustomSlider
           value={audioState.currentTime}
           max={audioState.duration || 100} // Prevent divide by zero
           onChange={onSeek}
@@ -131,10 +49,10 @@ const Controls: React.FC<ControlsProps> = ({
 
       {/* Main Buttons Row */}
       <div className="flex items-center justify-between">
-        
+
         {/* Shuffle / Loop (Animation Spot #3: Icon Hover) */}
         <div className="flex items-center gap-5">
-           <button 
+          <button
             onClick={onToggleShuffle}
             className={`transition-all duration-300 hover:scale-110 active:scale-95 ease-spring ${!audioState.isShuffle ? 'text-white/30 hover:text-white' : ''}`}
             style={{ color: audioState.isShuffle ? accentColor : undefined }}
@@ -142,7 +60,7 @@ const Controls: React.FC<ControlsProps> = ({
           >
             <Shuffle size={18} />
           </button>
-          <button 
+          <button
             onClick={onToggleLoop}
             className={`transition-all duration-300 hover:scale-110 active:scale-95 ease-spring ${!audioState.isLooping ? 'text-white/30 hover:text-white' : ''}`}
             style={{ color: audioState.isLooping ? accentColor : undefined }}
@@ -154,14 +72,14 @@ const Controls: React.FC<ControlsProps> = ({
 
         {/* Playback Controls (Animation Spot #4: Spring Buttons) */}
         <div className="flex items-center gap-8">
-          <button 
+          <button
             onClick={onPrev}
             className="text-white transition-all duration-300 active:scale-75 hover:scale-110 hover:opacity-80 hover:-translate-x-1 ease-spring"
           >
             <SkipBack size={28} fill="currentColor" className="opacity-80" />
           </button>
-          
-          <button 
+
+          <button
             onClick={onPlayPause}
             className="w-16 h-16 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 active:scale-90 transition-all duration-500 ease-spring shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_35px_rgba(255,255,255,0.4)]"
           >
@@ -172,7 +90,7 @@ const Controls: React.FC<ControlsProps> = ({
             )}
           </button>
 
-          <button 
+          <button
             onClick={onNext}
             className="text-white transition-all duration-300 active:scale-75 hover:scale-110 hover:opacity-80 hover:translate-x-1 ease-spring"
           >
@@ -182,24 +100,24 @@ const Controls: React.FC<ControlsProps> = ({
 
         {/* Volume (Animation Spot #5: Reveal Slider) */}
         <div className="flex items-center gap-3 group w-28 justify-end transition-all duration-300 hover:w-36">
-           <button 
+          <button
             className="text-white/40 group-hover:text-white transition-colors active:scale-90 ease-spring"
             onClick={() => {
               // Toggle mute logic if needed, passing simple mock event
               const newVol = audioState.volume > 0 ? 0 : 0.5;
               onVolumeChange({ target: { value: newVol } } as any);
             }}
-           >
-             {audioState.volume === 0 ? <VolumeX size={18} /> : audioState.volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
-           </button>
-           <div className="flex-1">
-             <CustomSlider 
-               value={audioState.volume}
-               max={1}
-               onChange={onVolumeChange}
-               accentColor={accentColor}
-             />
-           </div>
+          >
+            {audioState.volume === 0 ? <VolumeX size={18} /> : audioState.volume < 0.5 ? <Volume1 size={18} /> : <Volume2 size={18} />}
+          </button>
+          <div className="flex-1">
+            <CustomSlider
+              value={audioState.volume}
+              max={1}
+              onChange={onVolumeChange}
+              accentColor={accentColor}
+            />
+          </div>
         </div>
       </div>
     </div>

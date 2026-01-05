@@ -2,8 +2,9 @@
 
 import React, { useRef, useEffect } from 'react';
 import { Song, AudioState } from '../types';
-import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Music2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Volume1, VolumeX, Music2 } from 'lucide-react';
 import { SyncCommand } from '../hooks/usePresentationSync';
+import { CustomSlider } from './ui/CustomSlider';
 
 interface ControllerViewProps {
     currentSong: Song | null;
@@ -53,13 +54,15 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                 <div className="flex gap-2">
                     <button
                         onClick={() => sendCommand('SET_SHUFFLE', !audioState.isShuffle)}
-                        className={`p-2 rounded-lg transition-all ${audioState.isShuffle ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
+                        className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 active:scale-95 ease-spring ${audioState.isShuffle ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
+                        style={{ color: audioState.isShuffle ? accentColor : undefined }}
                     >
                         <Shuffle size={16} />
                     </button>
                     <button
                         onClick={() => sendCommand('SET_LOOP', !audioState.isLooping)}
-                        className={`p-2 rounded-lg transition-all ${audioState.isLooping ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
+                        className={`p-2 rounded-lg transition-all duration-300 hover:scale-110 active:scale-95 ease-spring ${audioState.isLooping ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
+                        style={{ color: audioState.isLooping ? accentColor : undefined }}
                     >
                         <Repeat size={16} />
                     </button>
@@ -96,57 +99,63 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                     <span className="text-xs text-white/30 font-mono w-10 text-right">
                         {Math.floor(audioState.currentTime / 60)}:{Math.floor(audioState.currentTime % 60).toString().padStart(2, '0')}
                     </span>
-                    <input
-                        type="range"
-                        min={0}
-                        max={audioState.duration || 100}
-                        value={audioState.currentTime}
-                        onChange={(e) => sendCommand('SEEK', Number(e.target.value))}
-                        className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white hover:[&::-webkit-slider-thumb]:scale-125 transition-all"
-                        style={{
-                            background: `linear-gradient(to right, ${accentColor} ${(audioState.currentTime / (audioState.duration || 1)) * 100}%, rgba(255, 255, 255, 0.1) 0)`
-                        }}
-                    />
+                    <div className="flex-1">
+                        <CustomSlider
+                            value={audioState.currentTime}
+                            max={audioState.duration || 100}
+                            onChange={(e) => sendCommand('SEEK', Number(e.target.value))}
+                            accentColor={accentColor}
+                            tooltipFormatter={(val) => `${Math.floor(val / 60)}:${Math.floor(val % 60).toString().padStart(2, '0')}`}
+                        />
+                    </div>
                     <span className="text-xs text-white/30 font-mono w-10">
                         {Math.floor(audioState.duration / 60)}:{Math.floor(audioState.duration % 60).toString().padStart(2, '0')}
                     </span>
                 </div>
 
                 {/* Main Controls */}
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-8">
                     <button
                         onClick={() => sendCommand('PREV')}
-                        className="p-4 rounded-full hover:bg-white/5 text-white/70 hover:text-white transition-all active:scale-95"
+                        className="text-white transition-all duration-300 active:scale-75 hover:scale-110 hover:opacity-80 hover:-translate-x-1 ease-spring"
                     >
-                        <SkipBack size={24} fill="currentColor" />
+                        <SkipBack size={32} fill="currentColor" className="opacity-80" />
                     </button>
                     <button
                         onClick={() => sendCommand('TOGGLE_PLAY')}
-                        className="p-5 rounded-full bg-white text-black hover:scale-105 active:scale-95 transition-all shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+                        className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center hover:scale-110 active:scale-95 transition-all duration-300 shadow-[0_0_25px_rgba(255,255,255,0.3)] ease-spring"
                         style={{ backgroundColor: accentColor, color: '#000' }}
                     >
-                        {audioState.isPlaying ? <Pause size={32} fill="currentColor" /> : <Play size={32} fill="currentColor" className="ml-1" />}
+                        {audioState.isPlaying ? <Pause size={40} fill="currentColor" /> : <Play size={40} fill="currentColor" className="ml-1" />}
                     </button>
                     <button
                         onClick={() => sendCommand('NEXT')}
-                        className="p-4 rounded-full hover:bg-white/5 text-white/70 hover:text-white transition-all active:scale-95"
+                        className="text-white transition-all duration-300 active:scale-75 hover:scale-110 hover:opacity-80 hover:translate-x-1 ease-spring"
                     >
-                        <SkipForward size={24} fill="currentColor" />
+                        <SkipForward size={32} fill="currentColor" className="opacity-80" />
                     </button>
                 </div>
 
                 {/* Volume */}
-                <div className="flex items-center gap-3 w-full max-w-xs">
-                    <Volume2 size={16} className="text-white/40" />
-                    <input
-                        type="range"
-                        min={0}
-                        max={1}
-                        step={0.05}
-                        value={audioState.volume}
-                        onChange={(e) => sendCommand('SET_VOLUME', Number(e.target.value))}
-                        className="flex-1 h-1 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white/80"
-                    />
+                <div className="flex items-center gap-3 w-full max-w-xs group">
+                    <button
+                        onClick={() => {
+                            const newVol = audioState.volume > 0 ? 0 : 0.5;
+                            sendCommand('SET_VOLUME', newVol);
+                        }}
+                        className="text-white/40 group-hover:text-white transition-colors active:scale-90 ease-spring"
+                    >
+                        {audioState.volume === 0 ? <VolumeX size={20} /> : audioState.volume < 0.5 ? <Volume1 size={20} /> : <Volume2 size={20} />}
+                    </button>
+                    <div className="flex-1">
+                        <CustomSlider
+                            value={audioState.volume}
+                            max={1}
+                            step={0.05}
+                            onChange={(e) => sendCommand('SET_VOLUME', Number(e.target.value))}
+                            accentColor={accentColor}
+                        />
+                    </div>
                 </div>
             </div>
 
