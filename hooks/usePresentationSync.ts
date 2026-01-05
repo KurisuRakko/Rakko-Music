@@ -170,19 +170,34 @@ export const usePresentationSync = ({
     }, [role, audioState, currentSong, currentCover, songs, broadcastState]);
 
 
+    // --- Refs for Handlers (to avoid stale closures in useEffect) ---
+    const handlersRef = useRef({
+        onPlay, onPause, onTogglePlay, onNext, onPrev,
+        onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong
+    });
+
+    // Update refs on every render
+    useEffect(() => {
+        handlersRef.current = {
+            onPlay, onPause, onTogglePlay, onNext, onPrev,
+            onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong
+        };
+    });
+
     // --- Player Logic: Execute Commands ---
     const executeCommand = (cmd: SyncCommand, payload?: any) => {
+        const handlers = handlersRef.current;
         switch (cmd) {
-            case 'PLAY': onPlay?.(); break;
-            case 'PAUSE': onPause?.(); break;
-            case 'TOGGLE_PLAY': onTogglePlay?.(); break;
-            case 'NEXT': onNext?.(); break;
-            case 'PREV': onPrev?.(); break;
-            case 'SEEK': onSeek?.(payload); break;
-            case 'SET_VOLUME': onSetVolume?.(payload); break;
-            case 'SET_LOOP': onSetLoop?.(payload); break;
-            case 'SET_SHUFFLE': onSetShuffle?.(payload); break;
-            case 'PLAY_SONG': onPlaySong?.(payload); break;
+            case 'PLAY': handlers.onPlay?.(); break;
+            case 'PAUSE': handlers.onPause?.(); break;
+            case 'TOGGLE_PLAY': handlers.onTogglePlay?.(); break;
+            case 'NEXT': handlers.onNext?.(); break;
+            case 'PREV': handlers.onPrev?.(); break;
+            case 'SEEK': handlers.onSeek?.(payload); break;
+            case 'SET_VOLUME': handlers.onSetVolume?.(payload); break;
+            case 'SET_LOOP': handlers.onSetLoop?.(payload); break;
+            case 'SET_SHUFFLE': handlers.onSetShuffle?.(payload); break;
+            case 'PLAY_SONG': handlers.onPlaySong?.(payload); break;
         }
     };
 
