@@ -140,15 +140,19 @@ const App: React.FC = () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
+      // Ensure we stop playing if component unmounts
+      audio.pause();
     };
   }, [handleEnded, audioState.volume]);
 
   // --- Song Change Effect ---
   useEffect(() => {
     if (currentSong) {
+      console.log("[App] Song Changed:", currentSong.name);
       audioRef.current.src = currentSong.url;
       audioRef.current.load();
       audioRef.current.play().then(() => {
+        console.log("[App] Playback started successfully");
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }).catch(err => {
         console.error("Playback failed", err);
@@ -168,7 +172,8 @@ const App: React.FC = () => {
   }, [currentSong]);
 
   // --- Actions ---
-  const togglePlayPause = () => {
+  const togglePlayPause = useCallback(() => {
+    console.log("[App] togglePlayPause called. Current State:", audioState.isPlaying, "Audio Paused:", audioRef.current.paused);
     if (!currentSong && songs.length > 0) {
       setCurrentSong(songs[0]);
       return;
@@ -177,17 +182,18 @@ const App: React.FC = () => {
     if (audioState.isPlaying) {
       audioRef.current.pause();
     } else {
-      audioRef.current.play();
+      audioRef.current.play().catch(e => console.error("Play error in toggle:", e));
     }
     setAudioState(prev => ({ ...prev, isPlaying: !prev.isPlaying }));
-  };
+  }, [currentSong, songs, audioState.isPlaying]);
 
-  const playPrev = () => {
+  const playPrev = useCallback(() => {
+    console.log("[App] playPrev called");
     if (songs.length === 0) return;
     const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
     const prevIndex = (currentIndex - 1 + songs.length) % songs.length;
     setCurrentSong(songs[prevIndex]);
-  };
+  }, [songs, currentSong]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = Number(e.target.value);
@@ -196,11 +202,12 @@ const App: React.FC = () => {
   };
 
   const handleSeekToTime = (time: number) => {
+    console.log("[App] Seek to:", time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
       setAudioState(prev => ({ ...prev, currentTime: time }));
       if (!audioState.isPlaying) {
-        audioRef.current.play();
+        audioRef.current.play().catch(console.error);
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }
     }

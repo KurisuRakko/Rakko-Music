@@ -187,12 +187,22 @@ export const usePresentationSync = ({
     // --- Player Logic: Execute Commands ---
     const executeCommand = (cmd: SyncCommand, payload?: any) => {
         const handlers = handlersRef.current;
+        console.log(`[PresentationSync] Executing command: ${cmd}`, payload);
         switch (cmd) {
             case 'PLAY': handlers.onPlay?.(); break;
             case 'PAUSE': handlers.onPause?.(); break;
-            case 'TOGGLE_PLAY': handlers.onTogglePlay?.(); break;
-            case 'NEXT': handlers.onNext?.(); break;
-            case 'PREV': handlers.onPrev?.(); break;
+            case 'TOGGLE_PLAY':
+                console.log("[PresentationSync] Calling onTogglePlay");
+                handlers.onTogglePlay?.();
+                break;
+            case 'NEXT':
+                console.log("[PresentationSync] Calling onNext");
+                handlers.onNext?.();
+                break;
+            case 'PREV':
+                console.log("[PresentationSync] Calling onPrev");
+                handlers.onPrev?.();
+                break;
             case 'SEEK': handlers.onSeek?.(payload); break;
             case 'SET_VOLUME': handlers.onSetVolume?.(payload); break;
             case 'SET_LOOP': handlers.onSetLoop?.(payload); break;
