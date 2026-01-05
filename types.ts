@@ -34,6 +34,7 @@ export interface AppSettings {
   showClock: boolean;
   clockTimezone: string;
   performanceMode: boolean;
+  controllerIdleMode: boolean;
 }
 
 export type AppMode = 'standard' | 'immersive' | 'coverflow' | 'shelf';

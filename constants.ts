@@ -5,6 +5,7 @@ export const DEFAULT_ACCENT_COLOR = "#ec4899";
 
 export const DEFAULT_SETTINGS = {
   showClock: true,
-  clockTimezone: "Intl.DateTimeFormat().resolvedOptions().timeZone", 
+  clockTimezone: "Intl.DateTimeFormat().resolvedOptions().timeZone",
   performanceMode: false,
+  controllerIdleMode: true,
 };

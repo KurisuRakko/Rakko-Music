@@ -16,6 +16,7 @@ export interface SyncStatePayload {
     currentCover: string | null;
     audioState: AudioState;
     songs: Song[];
+    settings: any; // Using any to avoid circular dependency if types is not imported properly or minimal subset
     timestamp: number;
 }
 
@@ -29,7 +30,8 @@ export type SyncCommand =
     | 'SET_VOLUME'
     | 'SET_LOOP'
     | 'SET_SHUFFLE'
-    | 'PLAY_SONG';
+    | 'PLAY_SONG'
+    | 'REORDER_SONGS';
 
 interface UsePresentationSyncProps {
     role: SyncRole;
@@ -38,6 +40,7 @@ interface UsePresentationSyncProps {
     currentCover?: string | null;
     audioState?: AudioState;
     songs?: Song[];
+    settings?: any;
     // Player-only handlers (to execute commands)
     onPlay?: () => void;
     onPause?: () => void;
@@ -49,6 +52,7 @@ interface UsePresentationSyncProps {
     onSetLoop?: (loop: boolean) => void;
     onSetShuffle?: (shuffle: boolean) => void;
     onPlaySong?: (song: Song) => void;
+    onReorder?: (from: number, to: number) => void;
 }
 
 export const usePresentationSync = ({
@@ -57,6 +61,7 @@ export const usePresentationSync = ({
     currentCover,
     audioState,
     songs,
+    settings,
     onPlay,
     onPause,
     onTogglePlay,
@@ -66,7 +71,8 @@ export const usePresentationSync = ({
     onSetVolume,
     onSetLoop,
     onSetShuffle,
-    onPlaySong
+    onPlaySong,
+    onReorder
 }: UsePresentationSyncProps) => {
 
     // --- State for Controller ---
@@ -74,6 +80,7 @@ export const usePresentationSync = ({
     const [syncedCover, setSyncedCover] = useState<string | null>(null);
     const [syncedAudioState, setSyncedAudioState] = useState<AudioState | null>(null);
     const [syncedSongs, setSyncedSongs] = useState<Song[]>([]);
+    const [syncedSettings, setSyncedSettings] = useState<any>(null);
     const [lastSyncTime, setLastSyncTime] = useState<number>(0);
 
     const channelRef = useRef<BroadcastChannel | null>(null);
@@ -95,6 +102,7 @@ export const usePresentationSync = ({
                     // Only update songs if changed (check length or hash if feasible, simple length/id check for now)
                     // For optimization, we rely on React's diffing, but could avoid setting if identical.
                     setSyncedSongs(msg.payload.songs);
+                    setSyncedSettings(msg.payload.settings);
                     setLastSyncTime(msg.payload.timestamp);
                 }
             } else if (role === 'player') {
@@ -132,6 +140,7 @@ export const usePresentationSync = ({
             audioState: audioState || { isPlaying: false, currentTime: 0, duration: 0, volume: 1, isLooping: false, isShuffle: false },
             // To reduce bandwidth, we could just send IDs, but for Demo Mode (local), full objects are fine.
             songs: songs || [],
+            settings: settings || {},
             timestamp: Date.now()
         };
 
@@ -140,6 +149,7 @@ export const usePresentationSync = ({
         const stateSig = JSON.stringify({
             id: currentSong?.id,
             state: { ...audioState, currentTime: Math.floor(audioState?.currentTime || 0) }, // Round time to second to reduce checks? No, we want smooth slider.
+            settings: settings,
             // Actually, for currentTime, we might want to throttle updates in the loop instead of here.
             // But here we just check if significant change occurred.
         });
@@ -153,7 +163,7 @@ export const usePresentationSync = ({
         // For MVP/Demo with <100 songs, it's acceptable. For production, separate PLAYLIST_UPDATE message.
 
         channelRef.current.postMessage({ type: 'STATE_UPDATE', payload });
-    }, [role, currentSong, currentCover, audioState, songs]);
+    }, [role, currentSong, currentCover, audioState, songs, settings]);
 
     // --- Throttle Broadcasts ---
     useEffect(() => {
@@ -169,20 +179,20 @@ export const usePresentationSync = ({
         }, 100); // 10Hz sync rate is plenty for smooth Seek Bar in remote
 
         return () => clearTimeout(handler);
-    }, [role, audioState, currentSong, currentCover, songs, broadcastState]);
+    }, [role, audioState, currentSong, currentCover, songs, settings, broadcastState]);
 
 
     // --- Refs for Handlers (to avoid stale closures in useEffect) ---
     const handlersRef = useRef({
         onPlay, onPause, onTogglePlay, onNext, onPrev,
-        onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong
+        onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong, onReorder
     });
 
     // Update refs on every render
     useEffect(() => {
         handlersRef.current = {
             onPlay, onPause, onTogglePlay, onNext, onPrev,
-            onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong
+            onSeek, onSetVolume, onSetLoop, onSetShuffle, onPlaySong, onReorder
         };
     });
 
@@ -210,6 +220,11 @@ export const usePresentationSync = ({
             case 'SET_LOOP': handlers.onSetLoop?.(payload); break;
             case 'SET_SHUFFLE': handlers.onSetShuffle?.(payload); break;
             case 'PLAY_SONG': handlers.onPlaySong?.(payload); break;
+            case 'REORDER_SONGS':
+                if (payload && typeof payload.from === 'number' && typeof payload.to === 'number') {
+                    handlers.onReorder?.(payload.from, payload.to);
+                }
+                break;
         }
     };
 
@@ -230,6 +245,7 @@ export const usePresentationSync = ({
         syncedCover,
         syncedAudioState,
         syncedSongs,
+        syncedSettings,
         lastSyncTime,
         // Controller Actions
         sendCommand

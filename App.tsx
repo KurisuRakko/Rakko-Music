@@ -141,7 +141,9 @@ const App: React.FC = () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
       // Ensure we stop playing if component unmounts
-      audio.pause();
+      // audio.pause(); // Fix: Do not pause on cleanup of this effect, only on unmount of App (which is fine to leave as is or remove)
+      // Actually, removing the pause entirely is safer for stability during hot-reloads and prop updates.
+      // audio.pause();
     };
   }, [handleEnded, audioState.volume]);
 
@@ -412,7 +414,7 @@ const App: React.FC = () => {
   // Determine Role based on URL
   const isController = new URLSearchParams(window.location.search).get('mode') === 'controller';
 
-  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, sendCommand, lastSyncTime } = usePresentationSync({
+  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, syncedSettings, sendCommand, lastSyncTime } = usePresentationSync({
     role: isController ? 'controller' : 'player',
     currentSong: isController ? undefined : currentSong,
     currentCover: isController ? undefined : currentCover,
@@ -435,6 +437,8 @@ const App: React.FC = () => {
     },
     onSetLoop: (loop) => setAudioState(p => ({ ...p, isLooping: loop })),
     onSetShuffle: (shuffle) => setAudioState(p => ({ ...p, isShuffle: shuffle })),
+    onReorder: handleReorder,
+    settings: settings, // Sync settings (including accentColor and controllerIdleMode)
     onPlaySong: (song) => {
       // Important: We receive a Song object from remote, but it might not match reference.
       // Or it might be a partial object if we stripped data. 
@@ -457,6 +461,7 @@ const App: React.FC = () => {
         sendCommand={sendCommand}
         accentColor={settings.accentColor} // Note: Settings not synced yet, using default/local. Can sync later.
         lastSyncTime={lastSyncTime}
+        settings={syncedSettings || settings} // Use synced settings if available, else local
       />
     );
   }
@@ -468,6 +473,10 @@ const App: React.FC = () => {
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
+      {/* Version Watermark */}
+      <div className="fixed bottom-4 left-4 z-[100] text-[10px] font-mono text-white/20 pointer-events-none select-none">
+        Rakko Music v3.0.5
+      </div>
 
       {/* === LOADING SCREEN === */}
       <div
