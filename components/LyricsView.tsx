@@ -1,4 +1,5 @@
-import React, { useMemo, useEffect, useRef } from 'react';
+
+import React, { useMemo, useEffect, useRef, useState } from 'react';
 import { parseLrc } from '../utils';
 import { Upload, Music } from 'lucide-react';
 
@@ -9,6 +10,7 @@ interface LyricsViewProps {
   accentColor: string;
   onSeek: (time: number) => void;
   variant?: 'default' | 'immersive';
+  performanceMode?: boolean;
 }
 
 const LyricsView: React.FC<LyricsViewProps> = ({ 
@@ -17,9 +19,14 @@ const LyricsView: React.FC<LyricsViewProps> = ({
   onImportLyrics, 
   accentColor, 
   onSeek,
-  variant = 'default'
+  variant = 'default',
+  performanceMode = false
 }) => {
   const parsedLyrics = useMemo(() => lyrics ? parseLrc(lyrics) : [], [lyrics]);
+  
+  // State to track if the user is manually interacting (scrolling/touching)
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const activeIndex = useMemo(() => {
     if (!parsedLyrics.length) return -1;
@@ -65,9 +72,35 @@ const LyricsView: React.FC<LyricsViewProps> = ({
      return Math.max(0, Math.min(1, progress));
   }, [currentTime, activeIndex, parsedLyrics]);
 
+  // --- User Interaction Handler ---
+  const handleUserInteraction = () => {
+    setIsUserScrolling(true);
+
+    if (interactionTimeoutRef.current) {
+      clearTimeout(interactionTimeoutRef.current);
+    }
+
+    // Reset back to blurred state after 1.5 seconds of inactivity
+    interactionTimeoutRef.current = setTimeout(() => {
+      setIsUserScrolling(false);
+    }, 1500);
+  };
+
   // --- Spring Physics Animation Logic ---
   useEffect(() => {
     if (activeIndex === -1 || !containerRef.current || !lineRefs.current[activeIndex]) return;
+
+    // Do not auto-scroll if user is interacting
+    if (isUserScrolling && !performanceMode) return;
+
+    // PERFORMANCE MODE: Skip physics loop, use simple scroll
+    if (performanceMode) {
+      const activeLine = lineRefs.current[activeIndex];
+      if (activeLine) {
+        activeLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
 
     const calculateTarget = () => {
         const container = containerRef.current;
@@ -111,6 +144,13 @@ const LyricsView: React.FC<LyricsViewProps> = ({
         if (container) state.scrollTop = container.scrollTop;
 
         const loop = (now: number) => {
+             // If user starts scrolling during animation, kill the physics loop
+             if (isUserScrolling) {
+                state.isAnimating = false;
+                rafRef.current = null;
+                return;
+             }
+
              const dt = Math.min((now - state.lastTime) / 1000, 0.1); // Cap dt to prevent huge jumps
              state.lastTime = now;
 
@@ -158,12 +198,13 @@ const LyricsView: React.FC<LyricsViewProps> = ({
            // Cleanup handled by state check
        }
     };
-  }, [activeIndex, variant]);
+  }, [activeIndex, variant, performanceMode, isUserScrolling]);
 
   // Stop animation loop if component unmounts
   useEffect(() => {
       return () => {
           if (rafRef.current) cancelAnimationFrame(rafRef.current);
+          if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
       };
   }, []);
 
@@ -184,6 +225,26 @@ const LyricsView: React.FC<LyricsViewProps> = ({
   };
   
   const getLineStyle = (index: number, activeIdx: number, isAct: boolean) => {
+      // 1. User Interaction Overrides: Clear visibility
+      if (isUserScrolling) {
+          return {
+              opacity: isAct ? 1 : 0.8, // Make inactive lines much more visible
+              filter: 'blur(0px)', // Completely remove blur
+              transform: 'translate3d(0,0,0) scale(1)', // Reset scale to neutral
+              transition: 'all 0.3s ease-out', // Smooth transition into "reading mode"
+              willChange: 'opacity, filter, transform'
+          };
+      }
+
+      if (performanceMode) {
+          // Simplified styles for performance mode
+           return {
+              opacity: isAct ? 1 : 0.4,
+              transform: isAct ? 'scale(1.05)' : 'scale(1)',
+              transition: 'opacity 0.2s, transform 0.2s',
+          };
+      }
+
       // Common optimization: GPU acceleration hint
       const baseTransform = 'translate3d(0,0,0)'; 
 
@@ -227,7 +288,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({
 
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 animate-scale-fade-in">
-         <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 animate-pulse-slow">
+         <div className={`w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 ${performanceMode ? '' : 'animate-pulse-slow'}`}>
             <Music size={40} className="text-white/20" />
          </div>
          <h3 className="text-xl font-bold text-white mb-2">No Lyrics Found</h3>
@@ -235,7 +296,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({
          
          <label 
             className="cursor-pointer group flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white text-white hover:text-black rounded-full transition-all duration-300 active:scale-95 border border-white/10"
-            style={{ boxShadow: `0 0 20px -5px ${accentColor}40` }}
+            style={{ boxShadow: performanceMode ? 'none' : `0 0 20px -5px ${accentColor}40` }}
          >
             <input 
                type="file" 
@@ -263,9 +324,13 @@ const LyricsView: React.FC<LyricsViewProps> = ({
   return (
     <div 
         ref={containerRef}
-        className={`w-full h-full relative ${variant === 'immersive' ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}`}
+        className={`w-full h-full relative ${variant === 'immersive' || performanceMode ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}`}
+        // Attach interaction handlers to the container
+        onWheel={handleUserInteraction}
+        onTouchMove={handleUserInteraction}
+        onPointerDown={handleUserInteraction}
         style={{ 
-          scrollBehavior: 'auto', // Important: Disable native smooth scrolling to let Physics take over
+          scrollBehavior: performanceMode ? 'smooth' : 'auto', // Important: Disable native smooth scrolling to let Physics take over (unless in performance mode)
           maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' 
         }}
@@ -279,7 +344,11 @@ const LyricsView: React.FC<LyricsViewProps> = ({
             <div
               key={index}
               ref={(el) => { lineRefs.current[index] = el; }}
-              onClick={() => onSeek(line.time)}
+              onClick={() => {
+                onSeek(line.time);
+                // Immediately resume auto-scroll logic if user clicks a line
+                setIsUserScrolling(false);
+              }}
               className="group cursor-pointer origin-left select-none flex flex-col items-start"
               style={style}
             >
@@ -287,7 +356,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({
                 className={`font-bold leading-tight tracking-tight transition-all duration-300 ${getTextSize(isActive)}`}
                 style={{
                     color: isActive ? '#fff' : 'rgba(255,255,255,0.8)',
-                    textShadow: isActive ? `0 0 40px ${accentColor}60` : 'none',
+                    textShadow: isActive && !performanceMode && !isUserScrolling ? `0 0 40px ${accentColor}60` : 'none',
                 }}
               >
                 {line.text}

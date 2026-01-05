@@ -1,16 +1,19 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Song, AudioState, AppSettings } from './types';
-import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR } from './constants';
+import { Song, AudioState, AppSettings, AppMode } from './types';
+import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR, DEFAULT_SETTINGS } from './constants';
 import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics } from './utils';
 import Controls from './components/Controls';
 import Playlist from './components/Playlist';
 import Settings from './components/Settings';
 import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, ScanEye, Play, Pause, Upload, FileMusic, Album, Maximize, Minimize, Image as ImageIcon } from 'lucide-react';
+import ShelfView from './components/ShelfView';
+import ModeControls from './components/ModeControls';
+import Clock from './components/Clock';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic } from 'lucide-react';
 
 type DesktopViewMode = 'library' | 'lyrics';
-type AppMode = 'standard' | 'immersive' | 'coverflow';
 
 const App: React.FC = () => {
   // --- State ---
@@ -31,6 +34,9 @@ const App: React.FC = () => {
     wallpaper: WALLPAPER_URL,
     bassBoost: false,
     accentColor: DEFAULT_ACCENT_COLOR,
+    showClock: true,
+    clockTimezone: 'Local',
+    performanceMode: DEFAULT_SETTINGS.performanceMode
   });
 
   // Loading State
@@ -49,6 +55,9 @@ const App: React.FC = () => {
   // Global App Mode
   const [appMode, setAppMode] = useState<AppMode>('standard');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Navigation History for "From where, back to where" logic
+  const [shelfOrigin, setShelfOrigin] = useState<'standard' | 'coverflow' | 'immersive'>('standard');
   
   // Prism View Background Toggle
   const [showPrismBg, setShowPrismBg] = useState(true);
@@ -69,7 +78,7 @@ const App: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Listen for Fullscreen changes (e.g. Esc key)
+  // Listen for Fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
@@ -201,7 +210,8 @@ const App: React.FC = () => {
     setAudioState(prev => ({ ...prev, volume: vol }));
   };
 
-  const toggleFullscreen = () => {
+  // Wrapped in useCallback to preserve reference for ModeControls memoization
+  const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(err => {
         console.error(`Error enabling fullscreen mode: ${err.message}`);
@@ -209,7 +219,7 @@ const App: React.FC = () => {
     } else {
       document.exitFullscreen();
     }
-  };
+  }, []);
 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -222,8 +232,6 @@ const App: React.FC = () => {
     const newSongs: Song[] = audioFiles.map((file) => {
       const rawName = getFileNameWithoutExtension(file.name);
       const info = parseMusicInfo(rawName);
-
-      // Fallback for artist if parser returns empty
       const artistDisplay = info.artists.length > 0 ? info.artists.join(', ') : 'Unknown Artist';
 
       return {
@@ -247,19 +255,17 @@ const App: React.FC = () => {
        }
     }));
 
-    // 4. Match Lyrics using Advanced Matcher (One-to-One)
+    // 4. Match Lyrics
     const matches = matchLyrics(newSongs, lrcContents);
     
-    // Apply matches to new songs
     newSongs.forEach(song => {
        if (matches[song.id]) {
            song.lyrics = matches[song.id];
        }
     });
 
-    // 5. Update State (Merge with existing)
+    // 5. Update State
     setSongs(prevSongs => {
-        // Also check if any new lyric files match EXISTING songs that don't have lyrics
         const songsWithoutLyrics = prevSongs.filter(s => !s.lyrics);
         const songsWithLyrics = prevSongs.filter(s => !!s.lyrics);
         
@@ -271,11 +277,9 @@ const App: React.FC = () => {
                  }
              });
         }
-        
         return [...songsWithLyrics, ...songsWithoutLyrics, ...newSongs];
     });
 
-    // Update current song if it got modified in the process
     if (currentSong) {
        const currentSongMatch = matchLyrics([currentSong], lrcContents);
        if (currentSongMatch[currentSong.id]) {
@@ -293,13 +297,14 @@ const App: React.FC = () => {
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
+    if (e.dataTransfer.types && Array.from(e.dataTransfer.types).includes("Files")) {
+        setIsDragging(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Only set dragging to false if we're leaving the main container or window
     if (!e.currentTarget.contains(e.relatedTarget as Node)) {
       setIsDragging(false);
     }
@@ -309,7 +314,7 @@ const App: React.FC = () => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    if (e.dataTransfer.files) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processFiles(Array.from(e.dataTransfer.files));
     }
   };
@@ -355,12 +360,41 @@ const App: React.FC = () => {
       });
   };
 
+  const handleReorder = (sourceIndex: number, destinationIndex: number) => {
+      setSongs(prev => {
+          const newSongs = [...prev];
+          const [movedSong] = newSongs.splice(sourceIndex, 1);
+          newSongs.splice(destinationIndex, 0, movedSong);
+          return newSongs;
+      });
+  };
+
   const toggleDesktopView = (mode: DesktopViewMode) => {
       setDesktopViewMode(mode);
   };
 
+  // Wrapped in useCallback to preserve reference for ModeControls memoization
+  const handleEnterShelfView = useCallback(() => {
+    if (appMode !== 'shelf') {
+        setShelfOrigin(appMode as 'standard' | 'coverflow' | 'immersive');
+        setAppMode('shelf');
+    }
+  }, [appMode]);
+
+  // Wrapped in useCallback to preserve reference for ModeControls memoization
+  const exitShelfMode = useCallback(() => {
+     if (shelfOrigin === 'standard') {
+         setAppMode('standard');
+     } else if (shelfOrigin === 'immersive') {
+         setAppMode('immersive');
+     } else {
+         setAppMode('coverflow');
+     }
+  }, [shelfOrigin]);
+
   const isImmersive = appMode === 'immersive';
   const isCoverFlow = appMode === 'coverflow';
+  const isShelf = appMode === 'shelf';
   const isStandard = appMode === 'standard';
 
   return (
@@ -373,64 +407,69 @@ const App: React.FC = () => {
       
       {/* === LOADING SCREEN === */}
       <div 
-        className={`fixed inset-0 z-[9999] bg-[#020202] flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] ${isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none scale-110'}`}
+        className={`fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] ${isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none scale-110'}`}
       >
-        <div className="relative flex items-center justify-center">
-             {/* Decorative Rings */}
-             <div className="absolute w-64 h-64 rounded-full border border-white/5 animate-[spin_12s_linear_infinite]"></div>
-             <div className="absolute w-48 h-48 rounded-full border border-t-transparent border-l-transparent border-r-white/10 border-b-white/10 animate-[spin_8s_linear_infinite_reverse]"></div>
-
-             {/* Main Logo Container */}
-             <div className="w-24 h-24 bg-white/5 backdrop-blur-2xl rounded-3xl flex items-center justify-center shadow-[0_0_50px_rgba(255,255,255,0.05)] border border-white/10 relative overflow-hidden group">
-                 <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                 <Music2 size={40} className="relative z-10 animate-pulse-slow" style={{ color: settings.accentColor }} />
-             </div>
-        </div>
-
-        <div className="mt-12 flex flex-col items-center gap-4">
-             <h1 className="text-xl font-medium tracking-[0.4em] text-white/90 pl-1">RAKKO</h1>
-             {/* Equalizer Loading Animation */}
-             <div className="flex gap-1.5 h-6 items-end">
-                <div className="w-1 bg-white/40 rounded-full animate-[bounce_1s_infinite] h-2" style={{ animationDelay: '0ms' }}></div>
-                <div className="w-1 bg-white/60 rounded-full animate-[bounce_1s_infinite] h-4" style={{ animationDelay: '150ms' }}></div>
-                <div className="w-1 bg-white/40 rounded-full animate-[bounce_1s_infinite] h-3" style={{ animationDelay: '300ms' }}></div>
+        <div className="relative">
+             <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full opacity-10 animate-pulse"></div>
+             <div className="relative w-16 h-16">
+                 <div className="absolute inset-0 rounded-full border-[3px] border-white/5"></div>
+                 <div 
+                    className="absolute inset-0 rounded-full border-[3px] border-t-transparent border-l-transparent border-r-transparent border-b-white animate-spin"
+                    style={{ 
+                        borderBottomColor: settings.accentColor,
+                        filter: `drop-shadow(0 0 10px ${settings.accentColor})`
+                    }}
+                 ></div>
              </div>
         </div>
       </div>
+
+      {/* === IMMERSIVE CLOCK === */}
+      {isImmersive && settings.showClock && (
+         <Clock timezone={settings.clockTimezone} accentColor={settings.accentColor} />
+      )}
 
       {/* === BACKGROUND LAYER === */}
       <div className="absolute inset-0 z-0 overflow-hidden">
-         {/* Normal Mode Background (Blurry Album Art) */}
-         <div 
-           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${!isStandard ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
-           style={{
-             backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
-             filter: 'blur(30px) brightness(0.7)',
-           }}
-         />
-         
-         {/* Immersive Mode Background (Clear Wallpaper) */}
-         <div 
-           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
-           style={{
-             backgroundImage: `url(${settings.wallpaper})`,
-             filter: 'brightness(1)', 
-           }}
-         />
-         
-         {/* CoverFlow Mode Background (Darkened Wallpaper) */}
-         <div 
-           className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isCoverFlow && showPrismBg ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
-           style={{
-             backgroundImage: `url(${settings.wallpaper})`,
-             filter: 'brightness(0.3)', 
-           }}
-         />
-         
-         <div className="absolute inset-0 bg-black/10" />
+         {settings.performanceMode ? (
+            // PERFORMANCE MODE: Single simple background layer
+            <div 
+              className="absolute inset-0 bg-cover bg-center transition-all duration-300"
+              style={{
+                backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
+                filter: 'brightness(0.25)', // Just darken, no blur
+              }}
+            />
+         ) : (
+            // STANDARD MODE: Complex layered background
+            <>
+                <div 
+                className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${!isStandard ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
+                style={{
+                    backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
+                    filter: 'blur(30px) brightness(0.7)',
+                }}
+                />
+                <div 
+                className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
+                style={{
+                    backgroundImage: `url(${settings.wallpaper})`,
+                    filter: 'brightness(1)', 
+                }}
+                />
+                <div 
+                className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${(isCoverFlow || isShelf) && showPrismBg ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
+                style={{
+                    backgroundImage: `url(${settings.wallpaper})`,
+                    filter: 'brightness(0.3)', 
+                }}
+                />
+                <div className="absolute inset-0 bg-black/10" />
+            </>
+         )}
       </div>
 
-      {/* === DRAG OVERLAY (Animation Spot #5) === */}
+      {/* === DRAG OVERLAY === */}
       {isDragging && (
         <div className="absolute inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center animate-fade-in transition-all duration-300 pointer-events-none">
           <div className="p-16 rounded-[3rem] bg-white/5 border-4 border-dashed border-white/20 text-center animate-pop-in transform transition-transform shadow-2xl backdrop-blur-xl">
@@ -446,7 +485,7 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* === COVER FLOW FULLSCREEN OVERLAY === */}
+      {/* === COVER FLOW OVERLAY === */}
       {isCoverFlow && (
           <CoverFlow 
             songs={songs}
@@ -462,53 +501,42 @@ const App: React.FC = () => {
             onClose={() => setAppMode('standard')}
             accentColor={settings.accentColor}
             showBackground={showPrismBg}
+            performanceMode={settings.performanceMode}
+          />
+      )}
+      
+      {/* === SHELF VIEW OVERLAY === */}
+      {isShelf && (
+          <ShelfView 
+            songs={songs}
+            currentSong={currentSong}
+            isPlaying={audioState.isPlaying}
+            onSelect={(song) => {
+               setCurrentSong(song);
+               setAudioState(p => ({ ...p, isPlaying: true }));
+               exitShelfMode();
+            }}
+            onClose={exitShelfMode}
+            accentColor={settings.accentColor}
+            performanceMode={settings.performanceMode}
           />
       )}
 
-      {/* === FLOATING MODE CONTROLS (Always on Top) === */}
-      <div className="fixed top-20 right-6 md:top-6 md:right-6 z-[200] flex items-center gap-2 p-1.5 bg-black/20 backdrop-blur-xl border border-white/10 rounded-full shadow-2xl animate-fade-in transition-all duration-300">
-        
-        {/* Background Toggle (Only for PrismView) */}
-        {isCoverFlow && (
-            <>
-            <button 
-                onClick={() => setShowPrismBg(!showPrismBg)}
-                className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${showPrismBg ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
-                title={showPrismBg ? "Hide Background" : "Show Background"}
-            >
-                <ImageIcon size={20} />
-            </button>
-            <div className="w-px h-4 bg-white/10 mx-0.5"></div>
-            </>
-        )}
-
-        <button
-            onClick={() => setAppMode(isCoverFlow ? 'standard' : 'coverflow')}
-            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isCoverFlow ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
-            title={isCoverFlow ? "Exit PrismFlow" : "PrismFlow"}
-        >
-            <Album size={20} />
-        </button>
-        <div className="w-px h-4 bg-white/10 mx-0.5"></div>
-        <button
-            onClick={() => setAppMode(isImmersive ? 'standard' : 'immersive')}
-            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isImmersive ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
-            title={isImmersive ? "Exit Immersive Mode" : "Immersive Mode"}
-        >
-            <ScanEye size={20} />
-        </button>
-        <div className="w-px h-4 bg-white/10 mx-0.5"></div>
-        <button
-            onClick={toggleFullscreen}
-            className={`p-2.5 rounded-full transition-all duration-300 ease-spring group relative ${isFullscreen ? 'bg-white text-black shadow-lg' : 'text-white/70 hover:bg-white/10 hover:text-white'}`}
-            title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
-        >
-            {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-        </button>
-      </div>
+      {/* === FLOATING MODE CONTROLS === */}
+      <ModeControls 
+        appMode={appMode}
+        setAppMode={setAppMode}
+        showPrismBg={showPrismBg}
+        setShowPrismBg={setShowPrismBg}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
+        onEnterShelf={handleEnterShelfView}
+        onExitShelf={exitShelfMode}
+        performanceMode={settings.performanceMode}
+      />
 
       {/* === MAIN LAYOUT CONTAINER === */}
-      <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${isCoverFlow ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${(isCoverFlow || isShelf) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
         
         {/* === LEFT PANEL: Player === */}
         <div className={`
@@ -544,11 +572,13 @@ const App: React.FC = () => {
                
                {/* Album Art */}
                <div className={`
-                   relative transition-all duration-1000 ease-elegant shadow-2xl
+                   relative transition-all duration-1000 ease-elegant
+                   ${settings.performanceMode ? '' : 'shadow-2xl'}
                    ${isImmersive ? 'w-16 h-16 rounded-lg mb-0 flex-shrink-0' : 'w-full max-w-md aspect-square rounded-[2.5rem] mb-12 hover:scale-[1.02]'}
                `}>
-                   {/* Glow (Normal Mode Only) */}
-                   <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ${isImmersive ? 'opacity-0' : 'opacity-40 animate-pulse-slow'}`} style={{ backgroundColor: settings.accentColor }}></div>
+                   {!settings.performanceMode && (
+                        <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ${isImmersive ? 'opacity-0' : 'opacity-40 animate-pulse-slow'}`} style={{ backgroundColor: settings.accentColor }}></div>
+                   )}
                    
                    <div className={`w-full h-full overflow-hidden border border-white/10 bg-black/20 relative z-10 transition-all duration-1000 ${isImmersive ? 'rounded-lg' : 'rounded-[2rem] md:rounded-[2.5rem]'}`}>
                        {currentSong ? (
@@ -572,10 +602,9 @@ const App: React.FC = () => {
                {/* Track Info */}
                <div className={`transition-all duration-1000 ease-elegant flex flex-col ${isImmersive ? 'text-left items-start flex-1 overflow-hidden' : 'text-center items-center w-full mb-8'}`}>
                  <div className="flex items-center gap-2 justify-center w-full">
-                    <h1 className={`font-bold text-white drop-shadow-lg truncate transition-all duration-1000 ${isImmersive ? 'text-lg w-full text-left' : 'text-2xl md:text-4xl max-w-full'}`}>
+                    <h1 className={`font-bold text-white ${!settings.performanceMode ? 'drop-shadow-lg' : ''} truncate transition-all duration-1000 ${isImmersive ? 'text-lg w-full text-left' : 'text-2xl md:text-4xl max-w-full'}`}>
                         {currentSong?.metadata?.title || currentSong?.name || "Ready to Play"}
                     </h1>
-                    {/* Version Badge (Normal Mode) */}
                     {!isImmersive && currentSong?.metadata?.version && (
                         <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white/90 border border-white/10 whitespace-nowrap">
                             {currentSong.metadata.version}
@@ -587,7 +616,6 @@ const App: React.FC = () => {
                      <p className={`font-medium ${isImmersive ? 'text-sm text-white/60' : 'text-lg text-white/60'}`}>
                         {currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "Rakko Music"}
                      </p>
-                     {/* Features */}
                      {currentSong?.metadata?.features && currentSong.metadata.features.length > 0 && (
                          <span className={`text-white/40 ${isImmersive ? 'text-xs' : 'text-base'}`}>
                             ft. {currentSong.metadata.features.join(', ')}
@@ -648,8 +676,6 @@ const App: React.FC = () => {
                       <Mic2 size={14} /> Lyrics
                    </button>
                </div>
-
-               {/* (Old Button Location was here) */}
            </div>
 
            {/* Content Area */}
@@ -668,6 +694,7 @@ const App: React.FC = () => {
                       onAddFiles={handleFileSelect}
                       onRemoveSong={handleRemoveSong}
                       onUpdateLyrics={handleUpdateLyrics}
+                      onReorder={handleReorder}
                       accentColor={settings.accentColor}
                   />
               </div>
@@ -682,6 +709,7 @@ const App: React.FC = () => {
                         accentColor={settings.accentColor}
                         onSeek={handleSeekToTime}
                         variant={isImmersive ? 'immersive' : 'default'}
+                        performanceMode={settings.performanceMode}
                     />
                  </div>
               </div>
@@ -690,9 +718,7 @@ const App: React.FC = () => {
            {/* Settings Button */}
            <button 
                onClick={() => setShowSettings(true)} 
-               className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}
-               title="Settings"
-           >
+               className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
               <SettingsIcon size={20} />
            </button>
         </div>

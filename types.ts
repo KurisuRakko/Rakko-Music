@@ -1,3 +1,4 @@
+
 export interface ParsedMusicInfo {
   artists: string[];
   title: string;
@@ -30,4 +31,9 @@ export interface AppSettings {
   wallpaper: string;
   bassBoost: boolean;
   accentColor: string;
+  showClock: boolean;
+  clockTimezone: string;
+  performanceMode: boolean;
 }
+
+export type AppMode = 'standard' | 'immersive' | 'coverflow' | 'shelf';

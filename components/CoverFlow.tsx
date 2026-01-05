@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useRef } from 'react';
 import { Song } from '../types';
 import { extractAlbumArt } from '../utils';
@@ -14,6 +15,7 @@ interface CoverFlowProps {
   onClose: () => void;
   accentColor: string;
   showBackground: boolean;
+  performanceMode?: boolean;
 }
 
 const COVER_SIZE = 360; 
@@ -25,13 +27,15 @@ const CoverCard = ({
   isActive, 
   loadCover, 
   color,
-  isPlaying
+  isPlaying,
+  performanceMode
 }: { 
   song: Song; 
   isActive: boolean; 
   loadCover: boolean;
   color: string;
   isPlaying: boolean;
+  performanceMode: boolean;
 }) => {
   const [cover, setCover] = useState<string | null>(null);
 
@@ -50,14 +54,14 @@ const CoverCard = ({
       {/* Main Card */}
       <div 
         className={`
-          w-full h-full rounded-xl overflow-hidden shadow-2xl border transition-all duration-500 ease-out relative z-10
+          w-full h-full rounded-xl overflow-hidden border transition-all duration-500 ease-out relative z-10
           ${isActive ? 'border-white/40 ring-1 ring-white/20' : 'border-white/5'}
         `}
         style={{ 
           backgroundColor: '#1a1a1a',
-          boxShadow: isActive ? `0 25px 80px -10px ${color}50` : '0 15px 40px -5px rgba(0,0,0,0.6)',
+          boxShadow: !performanceMode && isActive ? `0 25px 80px -10px ${color}50` : performanceMode ? 'none' : '0 15px 40px -5px rgba(0,0,0,0.6)',
           // Apply grayscale and dimming when paused and active
-          filter: isActive && !isPlaying ? 'grayscale(100%) brightness(0.6)' : 'none'
+          filter: isActive && !isPlaying && !performanceMode ? 'grayscale(100%) brightness(0.6)' : 'none'
         }}
       >
         {cover ? (
@@ -73,25 +77,29 @@ const CoverCard = ({
         )}
         
         {/* Gloss/Shine Effect */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-white/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-      </div>
-
-      {/* Reflection */}
-      <div 
-        className="absolute top-full left-0 w-full h-full mt-2 rounded-xl overflow-hidden opacity-40 pointer-events-none"
-        style={{ 
-            transform: 'scaleY(-1)', 
-            maskImage: 'linear-gradient(to bottom, transparent, transparent 5%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 100%)', 
-            WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%)',
-            filter: isActive && !isPlaying ? 'grayscale(100%) brightness(0.6)' : 'none'
-        }}
-      >
-         {cover ? (
-          <img src={cover} alt="" className="w-full h-full object-cover blur-[1px]" />
-        ) : (
-          <div className="w-full h-full bg-white/5 blur-[1px]" />
+        {!performanceMode && (
+           <div className="absolute inset-0 bg-gradient-to-tr from-white/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
         )}
       </div>
+
+      {/* Reflection - HIDDEN IN PERFORMANCE MODE */}
+      {!performanceMode && (
+        <div 
+            className="absolute top-full left-0 w-full h-full mt-2 rounded-xl overflow-hidden opacity-40 pointer-events-none"
+            style={{ 
+                transform: 'scaleY(-1)', 
+                maskImage: 'linear-gradient(to bottom, transparent, transparent 5%, rgba(0,0,0,0.4) 60%, rgba(0,0,0,0) 100%)', 
+                WebkitMaskImage: 'linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 60%)',
+                filter: isActive && !isPlaying ? 'grayscale(100%) brightness(0.6)' : 'none'
+            }}
+        >
+            {cover ? (
+            <img src={cover} alt="" className="w-full h-full object-cover blur-[1px]" />
+            ) : (
+            <div className="w-full h-full bg-white/5 blur-[1px]" />
+            )}
+        </div>
+      )}
     </div>
   );
 };
@@ -106,7 +114,8 @@ const CoverFlow: React.FC<CoverFlowProps> = ({
   onPrev,
   onClose,
   accentColor,
-  showBackground
+  showBackground,
+  performanceMode = false
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [internalIndex, setInternalIndex] = useState(0);
@@ -292,6 +301,7 @@ const CoverFlow: React.FC<CoverFlowProps> = ({
                 loadCover={Math.abs(offset) <= VISIBLE_RANGE} 
                 color={accentColor}
                 isPlaying={isPlaying}
+                performanceMode={performanceMode}
               />
             </div>
           );
@@ -311,7 +321,7 @@ const CoverFlow: React.FC<CoverFlowProps> = ({
           ${isMounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-20'}
       `}>
          {activeSong && (
-           <div className="space-y-2 drop-shadow-2xl">
+           <div className={`space-y-2 ${!performanceMode ? 'drop-shadow-2xl' : ''}`}>
              <h2 className="text-4xl md:text-5xl font-bold text-white tracking-tight leading-tight">
                 {activeSong.metadata?.title || activeSong.name}
              </h2>

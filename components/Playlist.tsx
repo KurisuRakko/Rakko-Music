@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Song } from '../types';
-import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud } from 'lucide-react';
+import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical } from 'lucide-react';
 
 interface PlaylistProps {
   songs: Song[];
@@ -10,6 +10,7 @@ interface PlaylistProps {
   onAddFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveSong: (id: string) => void;
   onUpdateLyrics: (id: string, lyrics: string) => void;
+  onReorder: (sourceIndex: number, destinationIndex: number) => void;
   accentColor: string;
 }
 
@@ -21,11 +22,16 @@ const Playlist: React.FC<PlaylistProps> = ({
   onAddFiles,
   onRemoveSong,
   onUpdateLyrics,
+  onReorder,
   accentColor
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; songId: string } | null>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Drag and Drop State
+  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
   // Close context menu on click outside
   useEffect(() => {
@@ -70,6 +76,39 @@ const Playlist: React.FC<PlaylistProps> = ({
     }
   };
 
+  // --- Drag and Drop Handlers ---
+
+  const handleDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedItemIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    // Set data to ensure drag works in Firefox
+    e.dataTransfer.setData("text/plain", index.toString());
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault(); // Necessary to allow dropping
+    if (draggedItemIndex === null || draggedItemIndex === index) return;
+    setDragOverIndex(index);
+  };
+
+  const handleDragLeave = () => {
+    setDragOverIndex(null);
+  };
+
+  const handleDrop = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedItemIndex !== null && draggedItemIndex !== index) {
+      onReorder(draggedItemIndex, index);
+    }
+    setDraggedItemIndex(null);
+    setDragOverIndex(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedItemIndex(null);
+    setDragOverIndex(null);
+  };
+
   return (
     <div className="flex flex-col h-full w-full">
       <div className="px-6 md:px-8 pb-4 animate-slide-up-fade">
@@ -106,21 +145,39 @@ const Playlist: React.FC<PlaylistProps> = ({
           songs.map((song, index) => {
             const isActive = currentSong?.id === song.id;
             const meta = song.metadata;
+            const isDragging = draggedItemIndex === index;
+            const isDragOver = dragOverIndex === index;
             
             return (
               <div
                 key={song.id}
+                draggable
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragEnd={handleDragEnd}
                 onClick={() => onSelect(song)}
                 onContextMenu={(e) => handleContextMenu(e, song.id)}
                 className={`
                   group relative flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-300 ease-elegant select-none
                   opacity-0 animate-slide-in-right hover:scale-[1.02] active:scale-[0.98]
                   ${isActive ? 'bg-white/10 translate-x-1' : 'hover:bg-white/5'}
+                  ${isDragging ? 'opacity-50 scale-95 border-2 border-dashed border-white/20' : ''}
+                  ${isDragOver ? 'bg-white/10 scale-105 shadow-xl z-10' : ''}
                 `}
-                style={{ animationDelay: `${index * 50}ms` }}
+                style={{ 
+                    animationDelay: `${index * 50}ms`,
+                    transform: isDragOver ? 'translateY(0) scale(1.02)' : undefined
+                }}
               >
+                {/* Drag Handle (Visible on Hover) */}
+                <div className="absolute left-1 opacity-0 group-hover:opacity-40 hover:!opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
+                   <GripVertical size={14} />
+                </div>
+
                 {/* Playing Indicator / Number */}
-                <div className="w-8 flex justify-center text-xs font-medium text-white/40 group-hover:text-white">
+                <div className="w-8 flex justify-center text-xs font-medium text-white/40 group-hover:text-white pl-2">
                   {isActive && isPlaying ? (
                      <div className="flex gap-0.5 items-end h-3">
                         <div className="w-0.5 animate-[pulse_0.6s_ease-in-out_infinite] h-full" style={{ backgroundColor: accentColor }}></div>

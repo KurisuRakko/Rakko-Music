@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, Zap, Palette } from 'lucide-react';
+import { X, Image as ImageIcon, Zap, Palette, Clock, Globe, Gauge } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SettingsProps {
@@ -31,11 +32,6 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
 
   if (!shouldRender) return null;
 
-  const handleSave = () => {
-    // You might want to save to local storage here
-    onClose();
-  };
-
   const colors = [
     "#ec4899", // Pink (Default)
     "#8b5cf6", // Violet
@@ -45,24 +41,38 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
     "#ef4444", // Red
   ];
 
+  const timezones = [
+    "Local",
+    "UTC",
+    "America/New_York",
+    "America/Los_Angeles",
+    "Europe/London",
+    "Europe/Paris",
+    "Asia/Tokyo",
+    "Asia/Shanghai",
+    "Australia/Sydney"
+  ];
+
   return (
     <div 
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ease-out ${isAnimatingIn ? 'bg-black/60 backdrop-blur-sm opacity-100' : 'bg-black/0 backdrop-blur-none opacity-0'}`}
+      className={`fixed inset-0 z-[300] flex items-center justify-center transition-all duration-300 ease-out ${isAnimatingIn ? 'bg-black/60 backdrop-blur-sm opacity-100' : 'bg-black/0 backdrop-blur-none opacity-0'}`}
       onClick={onClose}
     >
       <div 
         onClick={(e) => e.stopPropagation()}
         className={`
           bg-[#1a1b26]/90 border border-white/10 p-6 rounded-3xl w-full max-w-md shadow-2xl relative overflow-hidden 
-          transition-all duration-400 ease-spring transform
+          transition-all duration-400 ease-spring transform max-h-[90vh] overflow-y-auto custom-scrollbar
           ${isAnimatingIn ? 'scale-100 translate-y-0 opacity-100' : 'scale-90 translate-y-8 opacity-0'}
         `}
       >
         {/* Glow effect */}
-        <div 
-            className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 blur-[80px] rounded-full pointer-events-none opacity-20 transition-colors duration-500"
-            style={{ backgroundColor: settings.accentColor }}
-        ></div>
+        {!settings.performanceMode && (
+          <div 
+              className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 blur-[80px] rounded-full pointer-events-none opacity-20 transition-colors duration-500"
+              style={{ backgroundColor: settings.accentColor }}
+          ></div>
+        )}
         
         <div className="relative z-10">
           <div className="flex justify-between items-center mb-6">
@@ -78,37 +88,132 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
           </div>
 
           <div className="space-y-6">
-            {/* Bass Boost Toggle */}
-            <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] duration-300 active:scale-[0.98]">
-              <div className="flex items-center gap-3">
-                <div 
-                  className={`p-2 rounded-xl transition-colors duration-300 ${settings.bassBoost ? 'text-white' : 'bg-white/10 text-white/50'}`}
-                  style={{ backgroundColor: settings.bassBoost ? settings.accentColor : undefined }}
-                >
-                  <Zap size={20} fill={settings.bassBoost ? "currentColor" : "none"} className={settings.bassBoost ? "animate-pulse" : ""} />
+             {/* Performance Section */}
+             <div className="space-y-3">
+              <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">System</h3>
+              
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] duration-300 active:scale-[0.98]">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className={`p-2 rounded-xl transition-colors duration-300 ${settings.performanceMode ? 'text-white' : 'bg-white/10 text-white/50'}`}
+                    style={{ backgroundColor: settings.performanceMode ? settings.accentColor : undefined }}
+                  >
+                    <Gauge size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Performance Mode</h3>
+                    <p className="text-xs text-white/40">Disable blurs, physics & shadows</p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-white">Bass Boost</h3>
-                  <p className="text-xs text-white/40">Enhance low frequencies</p>
-                </div>
+                <label className="relative inline-flex items-center cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={settings.performanceMode}
+                    onChange={(e) => onUpdateSettings({ ...settings, performanceMode: e.target.checked })}
+                  />
+                  <div 
+                    className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
+                    style={{ backgroundColor: settings.performanceMode ? settings.accentColor : undefined }}
+                  ></div>
+                </label>
               </div>
-              <label className="relative inline-flex items-center cursor-pointer group">
-                <input 
-                  type="checkbox" 
-                  className="sr-only peer"
-                  checked={settings.bassBoost}
-                  onChange={(e) => onUpdateSettings({ ...settings, bassBoost: e.target.checked })}
-                />
-                <div 
-                  className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
-                  style={{ backgroundColor: settings.bassBoost ? settings.accentColor : undefined }}
-                ></div>
-              </label>
             </div>
 
-            {/* Accent Color */}
+            {/* Audio Section */}
             <div className="space-y-3">
-               <label className="text-sm font-medium text-white/70 flex items-center gap-2">
+              <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Audio</h3>
+              
+              {/* Bass Boost Toggle */}
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] duration-300 active:scale-[0.98]">
+                <div className="flex items-center gap-3">
+                  <div 
+                    className={`p-2 rounded-xl transition-colors duration-300 ${settings.bassBoost ? 'text-white' : 'bg-white/10 text-white/50'}`}
+                    style={{ backgroundColor: settings.bassBoost ? settings.accentColor : undefined }}
+                  >
+                    <Zap size={20} fill={settings.bassBoost ? "currentColor" : "none"} className={settings.bassBoost ? "animate-pulse" : ""} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Bass Boost</h3>
+                    <p className="text-xs text-white/40">Enhance low frequencies</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer group">
+                  <input 
+                    type="checkbox" 
+                    className="sr-only peer"
+                    checked={settings.bassBoost}
+                    onChange={(e) => onUpdateSettings({ ...settings, bassBoost: e.target.checked })}
+                  />
+                  <div 
+                    className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
+                    style={{ backgroundColor: settings.bassBoost ? settings.accentColor : undefined }}
+                  ></div>
+                </label>
+              </div>
+            </div>
+
+            {/* Display Section */}
+            <div className="space-y-3">
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Display</h3>
+                
+                 {/* Clock Toggle */}
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-white/10 rounded-xl text-white/70">
+                            <Clock size={20} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-white">Immersive Clock</h3>
+                            <p className="text-xs text-white/40">Show date & time in immersive mode</p>
+                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer group">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer"
+                            checked={settings.showClock}
+                            onChange={(e) => onUpdateSettings({ ...settings, showClock: e.target.checked })}
+                        />
+                        <div 
+                            className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
+                            style={{ backgroundColor: settings.showClock ? settings.accentColor : undefined }}
+                        ></div>
+                    </label>
+                </div>
+
+                {/* Timezone Selector */}
+                {settings.showClock && (
+                    <div className="space-y-2 animate-slide-up-fade">
+                        <label className="text-sm font-medium text-white/70 flex items-center gap-2 pl-1">
+                            <Globe size={14} />
+                            Timezone
+                        </label>
+                        <div className="relative">
+                            <select 
+                                value={settings.clockTimezone}
+                                onChange={(e) => onUpdateSettings({ ...settings, clockTimezone: e.target.value })}
+                                className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none appearance-none transition-all hover:border-white/20 focus:border-white/40"
+                            >
+                                {timezones.map(tz => (
+                                    <option key={tz} value={tz} className="bg-[#1e1e2e] text-white">
+                                        {tz}
+                                    </option>
+                                ))}
+                            </select>
+                            <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
+                                <Globe size={16} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Customization Section */}
+            <div className="space-y-3">
+               <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Theme</h3>
+               
+               <label className="text-sm font-medium text-white/70 flex items-center gap-2 pl-1">
                  <Palette size={16} />
                  Accent Color
                </label>
@@ -129,25 +234,25 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
                     className="w-8 h-8 rounded-full bg-transparent cursor-pointer border-0 p-0 transition-transform hover:scale-110 active:scale-95"
                   />
                </div>
-            </div>
-
-            {/* Wallpaper Input */}
-            <div className="space-y-3">
-              <label className="text-sm font-medium text-white/70 flex items-center gap-2">
-                <ImageIcon size={16} />
-                Wallpaper URL
-              </label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  value={settings.wallpaper}
-                  onChange={(e) => onUpdateSettings({ ...settings, wallpaper: e.target.value })}
-                  placeholder="https://..."
-                  className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all placeholder:text-white/20 focus:border-white/40 focus:ring-1 focus:ring-white/20"
-                  style={{ borderColor: `color-mix(in srgb, ${settings.accentColor} 30%, transparent)` }}
-                />
+            
+              {/* Wallpaper Input */}
+              <div className="space-y-3 mt-4">
+                <label className="text-sm font-medium text-white/70 flex items-center gap-2 pl-1">
+                    <ImageIcon size={16} />
+                    Wallpaper URL
+                </label>
+                <div className="flex gap-2">
+                    <input 
+                    type="text" 
+                    value={settings.wallpaper}
+                    onChange={(e) => onUpdateSettings({ ...settings, wallpaper: e.target.value })}
+                    placeholder="https://..."
+                    className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none transition-all placeholder:text-white/20 focus:border-white/40 focus:ring-1 focus:ring-white/20"
+                    style={{ borderColor: `color-mix(in srgb, ${settings.accentColor} 30%, transparent)` }}
+                    />
+                </div>
+                <p className="text-xs text-white/30 ml-1">Paste a direct image link to change background.</p>
               </div>
-              <p className="text-xs text-white/30 ml-1">Paste a direct image link to change background.</p>
             </div>
           </div>
         </div>
