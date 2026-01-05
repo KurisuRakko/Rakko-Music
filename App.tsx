@@ -412,7 +412,7 @@ const App: React.FC = () => {
   // Determine Role based on URL
   const isController = new URLSearchParams(window.location.search).get('mode') === 'controller';
 
-  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, sendCommand } = usePresentationSync({
+  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, sendCommand, lastSyncTime } = usePresentationSync({
     role: isController ? 'controller' : 'player',
     currentSong: isController ? undefined : currentSong,
     currentCover: isController ? undefined : currentCover,
@@ -456,6 +456,7 @@ const App: React.FC = () => {
         songs={syncedSongs}
         sendCommand={sendCommand}
         accentColor={settings.accentColor} // Note: Settings not synced yet, using default/local. Can sync later.
+        lastSyncTime={lastSyncTime}
       />
     );
   }

@@ -13,6 +13,7 @@ interface ControllerViewProps {
     songs: Song[];
     sendCommand: (cmd: SyncCommand, payload?: any) => void;
     accentColor: string;
+    lastSyncTime: number;
 }
 
 const ControllerView: React.FC<ControllerViewProps> = ({
@@ -21,9 +22,17 @@ const ControllerView: React.FC<ControllerViewProps> = ({
     audioState,
     songs,
     sendCommand,
-    accentColor
+    accentColor,
+    lastSyncTime
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const [currentTime, setCurrentTime] = React.useState(Date.now());
+
+    // Update time every second to check connection status
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, []);
 
     // Auto-scroll to active song
     useEffect(() => {
@@ -43,13 +52,19 @@ const ControllerView: React.FC<ControllerViewProps> = ({
         );
     }
 
+    const isConnected = (currentTime - lastSyncTime) < 10000;
+    const lastSyncDate = new Date(lastSyncTime);
+    const formattedTime = lastSyncTime > 0
+        ? `${lastSyncDate.getFullYear()}-${(lastSyncDate.getMonth() + 1).toString().padStart(2, '0')}-${lastSyncDate.getDate().toString().padStart(2, '0')} ${lastSyncDate.getHours().toString().padStart(2, '0')}:${lastSyncDate.getMinutes().toString().padStart(2, '0')}:${lastSyncDate.getSeconds().toString().padStart(2, '0')}`
+        : "Waiting for signal...";
+
     return (
         <div className="w-screen h-screen bg-[#09090b] text-white flex flex-col font-sans select-none overflow-hidden">
             {/* === HEADER === */}
             <div className="p-4 border-b border-white/5 bg-black/20 flex justify-between items-center backdrop-blur-md sticky top-0 z-20">
                 <div className="flex items-center gap-2 text-white/70">
-                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse shadow-[0_0_8px_limegreen]" />
-                    <span className="text-xs font-bold tracking-widest uppercase">Remote Connected</span>
+                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_limegreen]' : 'bg-red-500 shadow-[0_0_8px_red]'} animate-pulse transition-colors duration-500`} />
+                    <span className="text-xs font-mono tracking-widest opacity-80">{formattedTime}</span>
                 </div>
                 <div className="flex gap-2">
                     <button

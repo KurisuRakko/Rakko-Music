@@ -74,6 +74,7 @@ export const usePresentationSync = ({
     const [syncedCover, setSyncedCover] = useState<string | null>(null);
     const [syncedAudioState, setSyncedAudioState] = useState<AudioState | null>(null);
     const [syncedSongs, setSyncedSongs] = useState<Song[]>([]);
+    const [lastSyncTime, setLastSyncTime] = useState<number>(0);
 
     const channelRef = useRef<BroadcastChannel | null>(null);
     const lastStateRef = useRef<string>("");
@@ -94,6 +95,7 @@ export const usePresentationSync = ({
                     // Only update songs if changed (check length or hash if feasible, simple length/id check for now)
                     // For optimization, we rely on React's diffing, but could avoid setting if identical.
                     setSyncedSongs(msg.payload.songs);
+                    setLastSyncTime(msg.payload.timestamp);
                 }
             } else if (role === 'player') {
                 if (msg.type === 'REQUEST_INIT') {
@@ -228,6 +230,7 @@ export const usePresentationSync = ({
         syncedCover,
         syncedAudioState,
         syncedSongs,
+        lastSyncTime,
         // Controller Actions
         sendCommand
     };
