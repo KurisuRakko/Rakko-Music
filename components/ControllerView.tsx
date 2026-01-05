@@ -10,10 +10,8 @@ interface ControllerViewProps {
     currentCover: string | null;
     audioState: AudioState | null;
     songs: Song[];
-    sendCommand: (cmd: SyncCommand, payload?: any) => void;
-    accentColor: string;
-    lastSyncTime: number;
-    settings?: any;
+    sendPing: () => void;
+    lastPongTime: number;
 }
 
 const ControllerView: React.FC<ControllerViewProps> = ({
@@ -24,16 +22,24 @@ const ControllerView: React.FC<ControllerViewProps> = ({
     sendCommand,
     accentColor,
     lastSyncTime,
-    settings
+    lastPongTime,
+    settings,
+    sendPing
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [currentTime, setCurrentTime] = useState(Date.now());
+    const [isPinging, setIsPinging] = useState(false);
 
     // Update time every second to check connection status
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(Date.now()), 1000);
         return () => clearInterval(timer);
     }, []);
+
+    // Reset pinging state when Pong is received
+    useEffect(() => {
+        setIsPinging(false);
+    }, [lastPongTime]);
 
     // Auto-scroll to active song
     useEffect(() => {
@@ -54,10 +60,22 @@ const ControllerView: React.FC<ControllerViewProps> = ({
     }
 
     const isConnected = (currentTime - lastSyncTime) < 10000;
-    const lastSyncDate = new Date(lastSyncTime);
-    const formattedTime = lastSyncTime > 0
-        ? `${lastSyncDate.getFullYear()}-${(lastSyncDate.getMonth() + 1).toString().padStart(2, '0')}-${lastSyncDate.getDate().toString().padStart(2, '0')} ${lastSyncDate.getHours().toString().padStart(2, '0')}:${lastSyncDate.getMinutes().toString().padStart(2, '0')}:${lastSyncDate.getSeconds().toString().padStart(2, '0')}`
-        : "Waiting for signal...";
+
+    // Ping Logic
+    const handlePing = () => {
+        setIsPinging(true);
+        sendPing();
+    };
+
+    const getStatusText = () => {
+        if (isPinging) return "Pinging...";
+        if (lastPongTime > 0 && (currentTime - lastPongTime) < 3000) return "Connected";
+        if (isConnected) return "Online";
+        return "Offline";
+    };
+
+    const statusText = getStatusText();
+    const statusColor = statusText === "Connected" ? "text-green-400" : (statusText === "Online" ? "text-blue-400" : (statusText === "Pinging..." ? "text-yellow-400" : "text-red-400"));
 
     return (
         <div className="w-screen h-screen bg-[#09090b] text-white flex flex-col font-sans select-none overflow-hidden relative">
@@ -66,9 +84,21 @@ const ControllerView: React.FC<ControllerViewProps> = ({
             <div className={`
                 p-4 border-b border-white/5 bg-black/20 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 
             `}>
-                <div className="flex items-center gap-2 text-white/70">
-                    <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_limegreen]' : 'bg-red-500 shadow-[0_0_8px_red]'} animate-pulse transition-colors duration-500`} />
-                    <span className="text-xs font-mono tracking-widest opacity-80">{formattedTime}</span>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handlePing}
+                        className={`
+                            px-3 py-1.5 rounded-full border border-white/10 bg-white/5 hover:bg-white/10 
+                            text-xs font-bold tracking-wide transition-all active:scale-95
+                            flex items-center gap-2
+                        `}
+                    >
+                        <div className={`w-2 h-2 rounded-full ${statusText === 'Offline' ? 'bg-red-500' : 'bg-green-500'} ${isPinging ? 'animate-ping' : ''}`} />
+                        PING
+                    </button>
+                    <span className={`text-xs font-mono font-bold ${statusColor} transition-colors duration-300`}>
+                        {statusText}
+                    </span>
                 </div>
                 <div className="flex gap-2">
                     <button
@@ -95,7 +125,7 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                 {/* Large Art */}
                 <div className={`
                     rounded-2xl shadow-2xl overflow-hidden border border-white/10 relative group transition-all duration-1000
-                    w-48 h-48 sm:w-64 sm:h-64
+                    w-48 h-48 sm:w-64 sm:h-64 shrink-0
                 `}>
                     {currentSong ? (
                         <img src={currentCover || undefined}
@@ -107,16 +137,16 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                             <Music2 size={48} className="opacity-20" />
                         </div>
                     )}
-                    {/* Metadata Overlay */}
-                    <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4 transition-opacity duration-500`}>
-                        {/* Metadata is inside the art container in original. */}
-                        <h2 className="text-xl font-bold truncate text-white drop-shadow-md">
-                            {currentSong?.metadata?.title || currentSong?.name || "Not Playing"}
-                        </h2>
-                        <p className="text-sm text-white/60 truncate">
-                            {currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "..."}
-                        </p>
-                    </div>
+                </div>
+
+                {/* Metadata - Full Display, No Truncation */}
+                <div className="w-full flex flex-col items-center text-center gap-1">
+                    <h2 className="text-xl font-bold text-white drop-shadow-md whitespace-normal break-words leading-tight">
+                        {currentSong?.metadata?.title || currentSong?.name || "Not Playing"}
+                    </h2>
+                    <p className="text-sm text-white/60 whitespace-normal break-words leading-snug">
+                        {currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "..."}
+                    </p>
                 </div>
 
                 {/* Controls Container */}

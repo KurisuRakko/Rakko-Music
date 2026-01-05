@@ -38,7 +38,8 @@ const App: React.FC = () => {
     accentColor: DEFAULT_ACCENT_COLOR,
     showClock: true,
     clockTimezone: 'Local',
-    performanceMode: DEFAULT_SETTINGS.performanceMode
+    performanceMode: DEFAULT_SETTINGS.performanceMode,
+    idleMode: DEFAULT_SETTINGS.idleMode
   });
 
   // Loading State
@@ -412,46 +413,47 @@ const App: React.FC = () => {
 
   // --- Idle Mode Logic ---
   const [isIdle, setIsIdle] = useState(false);
-  const lastActivityRef = useRef(Date.now());
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const resetIdle = () => {
-      lastActivityRef.current = Date.now();
-      if (isIdle) setIsIdle(false);
-
+    const startTimer = () => {
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-
       if (settings.idleMode) {
         idleTimeoutRef.current = setTimeout(() => {
           setIsIdle(true);
-        }, 5000); // 5 seconds idle
+        }, 5000);
       }
     };
 
-    window.addEventListener('mousemove', resetIdle);
-    window.addEventListener('keydown', resetIdle);
-    window.addEventListener('touchstart', resetIdle);
-    window.addEventListener('click', resetIdle);
-    window.addEventListener('scroll', resetIdle);
+    const onActivity = () => {
+      setIsIdle(false);
+      startTimer();
+    };
 
-    resetIdle();
+    window.addEventListener('mousemove', onActivity);
+    window.addEventListener('keydown', onActivity);
+    window.addEventListener('touchstart', onActivity);
+    window.addEventListener('click', onActivity);
+    window.addEventListener('scroll', onActivity);
+
+    // Initial start
+    startTimer();
 
     return () => {
-      window.removeEventListener('mousemove', resetIdle);
-      window.removeEventListener('keydown', resetIdle);
-      window.removeEventListener('touchstart', resetIdle);
-      window.removeEventListener('click', resetIdle);
-      window.removeEventListener('scroll', resetIdle);
+      window.removeEventListener('mousemove', onActivity);
+      window.removeEventListener('keydown', onActivity);
+      window.removeEventListener('touchstart', onActivity);
+      window.removeEventListener('click', onActivity);
+      window.removeEventListener('scroll', onActivity);
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [settings.idleMode, isIdle]);
+  }, [settings.idleMode]);
 
   // --- Presentation Sync Hook ---
   // Determine Role based on URL
   const isController = new URLSearchParams(window.location.search).get('mode') === 'controller';
 
-  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, syncedSettings, sendCommand, lastSyncTime } = usePresentationSync({
+  const { syncedSong, syncedCover, syncedAudioState, syncedSongs, syncedSettings, sendCommand, lastSyncTime, sendPing, lastPongTime } = usePresentationSync({
     role: isController ? 'controller' : 'player',
     currentSong: isController ? undefined : currentSong,
     currentCover: isController ? undefined : currentCover,
@@ -499,6 +501,8 @@ const App: React.FC = () => {
         accentColor={settings.accentColor} // Note: Settings not synced yet, using default/local. Can sync later.
         lastSyncTime={lastSyncTime}
         settings={syncedSettings || settings} // Use synced settings if available, else local
+        sendPing={sendPing}
+        lastPongTime={lastPongTime}
       />
     );
   }

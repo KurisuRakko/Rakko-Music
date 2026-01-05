@@ -9,7 +9,9 @@ export type SyncRole = 'player' | 'controller';
 export type SyncMessage =
     | { type: 'STATE_UPDATE'; payload: SyncStatePayload }
     | { type: 'COMMAND'; command: SyncCommand; payload?: any; sourceId?: string }
-    | { type: 'REQUEST_INIT' };
+    | { type: 'REQUEST_INIT' }
+    | { type: 'PING' }
+    | { type: 'PONG'; timestamp: number };
 
 export interface SyncStatePayload {
     currentSong: Song | null;
@@ -82,6 +84,7 @@ export const usePresentationSync = ({
     const [syncedSongs, setSyncedSongs] = useState<Song[]>([]);
     const [syncedSettings, setSyncedSettings] = useState<any>(null);
     const [lastSyncTime, setLastSyncTime] = useState<number>(0);
+    const [lastPongTime, setLastPongTime] = useState<number>(0);
 
     const channelRef = useRef<BroadcastChannel | null>(null);
     const lastStateRef = useRef<string>("");
@@ -104,6 +107,8 @@ export const usePresentationSync = ({
                     setSyncedSongs(msg.payload.songs);
                     setSyncedSettings(msg.payload.settings);
                     setLastSyncTime(msg.payload.timestamp);
+                } else if (msg.type === 'PONG') {
+                    setLastPongTime(msg.timestamp);
                 }
             } else if (role === 'player') {
                 if (msg.type === 'REQUEST_INIT') {
@@ -111,6 +116,8 @@ export const usePresentationSync = ({
                     broadcastState(true);
                 } else if (msg.type === 'COMMAND') {
                     executeCommand(msg.command, msg.payload);
+                } else if (msg.type === 'PING') {
+                    channel.postMessage({ type: 'PONG', timestamp: Date.now() });
                 }
             }
         };
@@ -239,6 +246,11 @@ export const usePresentationSync = ({
         });
     };
 
+    const sendPing = () => {
+        if (role !== 'controller' || !channelRef.current) return;
+        channelRef.current.postMessage({ type: 'PING' });
+    };
+
     return {
         // Controller Data
         syncedSong,
@@ -247,7 +259,9 @@ export const usePresentationSync = ({
         syncedSongs,
         syncedSettings,
         lastSyncTime,
+        lastPongTime,
         // Controller Actions
-        sendCommand
+        sendCommand,
+        sendPing
     };
 };
