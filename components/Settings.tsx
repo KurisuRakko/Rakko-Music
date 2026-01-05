@@ -153,18 +153,19 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
               </div>
             </div>
 
-            {/* Remote Control Section */}
+
+            {/* Display Section */}
             <div className="space-y-3">
-              <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Controller</h3>
+              <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Display</h3>
 
               {/* Idle Mode Toggle */}
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] duration-300 active:scale-[0.98]">
                 <div className="flex items-center gap-3">
                   <div
-                    className={`p-2 rounded-xl transition-colors duration-300 ${settings.controllerIdleMode ? 'text-white' : 'bg-white/10 text-white/50'}`}
-                    style={{ backgroundColor: settings.controllerIdleMode ? settings.accentColor : undefined }}
+                    className={`p-2 rounded-xl transition-colors duration-300 ${settings.idleMode ? 'text-white' : 'bg-white/10 text-white/50'}`}
+                    style={{ backgroundColor: settings.idleMode ? settings.accentColor : undefined }}
                   >
-                    <Zap size={20} fill={settings.controllerIdleMode ? "currentColor" : "none"} />
+                    <Zap size={20} fill={settings.idleMode ? "currentColor" : "none"} />
                   </div>
                   <div>
                     <h3 className="text-sm font-semibold text-white">Idle Mode</h3>
@@ -175,20 +176,15 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
                   <input
                     type="checkbox"
                     className="sr-only peer"
-                    checked={settings.controllerIdleMode}
-                    onChange={(e) => onUpdateSettings({ ...settings, controllerIdleMode: e.target.checked })}
+                    checked={settings.idleMode}
+                    onChange={(e) => onUpdateSettings({ ...settings, idleMode: e.target.checked })}
                   />
                   <div
                     className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
-                    style={{ backgroundColor: settings.controllerIdleMode ? settings.accentColor : undefined }}
+                    style={{ backgroundColor: settings.idleMode ? settings.accentColor : undefined }}
                   ></div>
                 </label>
               </div>
-            </div>
-
-            {/* Display Section */}
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Display</h3>
 
               {/* Clock Toggle */}
               <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10">

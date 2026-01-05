@@ -28,9 +28,6 @@ const ControllerView: React.FC<ControllerViewProps> = ({
 }) => {
     const scrollRef = useRef<HTMLDivElement>(null);
     const [currentTime, setCurrentTime] = useState(Date.now());
-    const [isIdle, setIsIdle] = useState(false);
-    const lastActivityRef = useRef(Date.now());
-    const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Update time every second to check connection status
     useEffect(() => {
@@ -38,47 +35,15 @@ const ControllerView: React.FC<ControllerViewProps> = ({
         return () => clearInterval(timer);
     }, []);
 
-    // Idle Detection
-    useEffect(() => {
-        const resetIdle = () => {
-            lastActivityRef.current = Date.now();
-            if (isIdle) setIsIdle(false);
-
-            if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-
-            if (settings?.controllerIdleMode) {
-                idleTimeoutRef.current = setTimeout(() => {
-                    setIsIdle(true);
-                }, 5000);
-            }
-        };
-
-        window.addEventListener('mousemove', resetIdle);
-        window.addEventListener('touchstart', resetIdle);
-        window.addEventListener('click', resetIdle);
-        window.addEventListener('scroll', resetIdle);
-
-        // Initial setup
-        resetIdle();
-
-        return () => {
-            window.removeEventListener('mousemove', resetIdle);
-            window.removeEventListener('touchstart', resetIdle);
-            window.removeEventListener('click', resetIdle);
-            window.removeEventListener('scroll', resetIdle);
-            if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-        };
-    }, [settings?.controllerIdleMode, isIdle]);
-
     // Auto-scroll to active song
     useEffect(() => {
-        if (currentSong && scrollRef.current && !isIdle) {
+        if (currentSong && scrollRef.current) {
             const activeEl = document.getElementById(`ctrl-song-${currentSong.id}`);
             if (activeEl) {
                 activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         }
-    }, [currentSong?.id, isIdle]);
+    }, [currentSong?.id]);
 
     if (!audioState) {
         return (
@@ -100,8 +65,6 @@ const ControllerView: React.FC<ControllerViewProps> = ({
             {/* === HEADER === */}
             <div className={`
                 p-4 border-b border-white/5 bg-black/20 flex justify-between items-center backdrop-blur-md sticky top-0 z-20 
-                transition-all duration-1000 ease-in-out
-                ${isIdle ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100'}
             `}>
                 <div className="flex items-center gap-2 text-white/70">
                     <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_8px_limegreen]' : 'bg-red-500 shadow-[0_0_8px_red]'} animate-pulse transition-colors duration-500`} />
@@ -128,13 +91,11 @@ const ControllerView: React.FC<ControllerViewProps> = ({
             {/* === NOW PLAYING === */}
             <div className={`
                 p-6 flex flex-col items-center gap-6 border-b border-white/5 bg-gradient-to-b from-[#111] to-[#09090b] relative z-10
-                transition-all duration-1000 ease-in-out
-                ${isIdle ? 'translate-y-[20vh] scale-110 border-transparent bg-transparent' : 'translate-y-0 scale-100'}
             `}>
                 {/* Large Art */}
                 <div className={`
                     rounded-2xl shadow-2xl overflow-hidden border border-white/10 relative group transition-all duration-1000
-                    ${isIdle ? 'w-80 h-80 shadow-[0_20px_50px_rgba(0,0,0,0.5)]' : 'w-48 h-48 sm:w-64 sm:h-64'}
+                    w-48 h-48 sm:w-64 sm:h-64
                 `}>
                     {currentSong ? (
                         <img src={currentCover || undefined}
@@ -146,10 +107,8 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                             <Music2 size={48} className="opacity-20" />
                         </div>
                     )}
-                    {/* Metadata Overlay: Hidden in idle mode to keep it clean? Or moved? User said "album cover and title moved down". */
-                    /* Let's keep metadata visible but positioned properly */
-                    /* Actually user said "album cover AND title move down". Let's move them together. */}
-                    <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4 transition-opacity duration-500 ${isIdle ? 'opacity-100' : 'opacity-100'}`}>
+                    {/* Metadata Overlay */}
+                    <div className={`absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-4 transition-opacity duration-500`}>
                         {/* Metadata is inside the art container in original. */}
                         <h2 className="text-xl font-bold truncate text-white drop-shadow-md">
                             {currentSong?.metadata?.title || currentSong?.name || "Not Playing"}
@@ -160,10 +119,9 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                     </div>
                 </div>
 
-                {/* Controls Container - Hide in Idle */}
+                {/* Controls Container */}
                 <div className={`
                     w-full flex flex-col items-center gap-6 transition-all duration-1000 ease-in-out
-                    ${isIdle ? 'opacity-0 pointer-events-none translate-y-10 scale-90' : 'opacity-100 translate-y-0 scale-100'}
                 `}>
                     {/* Progress */}
                     <div className="w-full flex items-center gap-3">
@@ -234,7 +192,7 @@ const ControllerView: React.FC<ControllerViewProps> = ({
             {/* === PLAYLIST === */}
             <div className={`
                 flex-1 overflow-y-auto p-4 space-y-1 custom-scrollbar transition-all duration-1000
-                ${isIdle ? 'opacity-0 translate-y-full' : 'opacity-100 translate-y-0'}
+                opacity-100 translate-y-0
             `}>
                 <h3 className="text-xs font-bold text-white/30 uppercase tracking-widest mb-3 pl-2">Up Next</h3>
                 {songs.map((song, idx) => {

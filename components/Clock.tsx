@@ -1,93 +1,104 @@
 import React, { useState, useEffect } from 'react';
 
 interface ClockProps {
-  timezone: string;
-  accentColor: string;
+  scale?: number;
+  showMilliseconds?: boolean;
 }
 
-const Clock: React.FC<ClockProps> = ({ timezone, accentColor }) => {
-  const [time, setTime] = useState<Date>(new Date());
-  const [mounted, setMounted] = useState(false);
+const Clock: React.FC<ClockProps> = ({ scale = 1, showMilliseconds = false }) => {
+  const [time, setTime] = useState(new Date());
+  const requestRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    setMounted(true);
-    const timer = setInterval(() => {
+    const update = () => {
       setTime(new Date());
-    }, 1000);
+      if (showMilliseconds) {
+        requestRef.current = requestAnimationFrame(update);
+      }
+    };
 
-    return () => clearInterval(timer);
-  }, []);
+    if (showMilliseconds) {
+      requestRef.current = requestAnimationFrame(update);
+    } else {
+      // Immediate update
+      setTime(new Date());
 
-  // Format Date: 2023/10/24 Tuesday
-  const formatDate = (date: Date) => {
-    try {
-      const options: Intl.DateTimeFormatOptions = {
-        timeZone: timezone === 'Local' ? undefined : timezone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        weekday: 'long',
-      };
-      // Format usually returns "weekday, month/day/year" depending on locale, 
-      // let's manually construct for the specific requested format "YYYY/MM/DD Weekday"
-      
-      // We get parts to reconstruct exactly what we want regardless of browser locale
-      const formatter = new Intl.DateTimeFormat('en-US', options);
-      const parts = formatter.formatToParts(date);
-      
-      const getPart = (type: string) => parts.find(p => p.type === type)?.value || '';
-      
-      return `${getPart('year')}/${getPart('month')}/${getPart('day')} ${getPart('weekday')}`;
-    } catch (e) {
-      return date.toLocaleDateString();
+      // Sync to the start of the next second to avoid drift and align update
+      const now = new Date();
+      const msUntilNextSecond = 1000 - now.getMilliseconds();
+
+      timerRef.current = setTimeout(() => {
+        setTime(new Date());
+        timerRef.current = setInterval(() => {
+          setTime(new Date());
+        }, 1000);
+      }, msUntilNextSecond);
     }
-  };
 
-  // Format Time: 14:30:05
-  const formatTime = (date: Date) => {
-    try {
-      return date.toLocaleTimeString('en-GB', {
-        timeZone: timezone === 'Local' ? undefined : timezone,
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    } catch (e) {
-      return "00:00:00";
-    }
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [showMilliseconds]);
+
+  const hours = time.getHours().toString().padStart(2, '0');
+  const minutes = time.getMinutes().toString().padStart(2, '0');
+  const seconds = time.getSeconds().toString().padStart(2, '0');
+  const ms = time.getMilliseconds().toString().padStart(3, '0');
+
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric'
   };
+  const dateString = time.toLocaleDateString('en-US', dateOptions);
 
   return (
-    <div 
-      className={`
-        fixed top-8 left-8 z-[150] pointer-events-none select-none
-        transition-all duration-1000 ease-elegant
-        ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'}
-      `}
+    <div
+      className="flex flex-col items-start select-none transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]"
       style={{
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+        transform: `scale(${scale})`,
+        transformOrigin: 'top left'
       }}
     >
-      <div className="flex flex-col items-start drop-shadow-lg">
-        {/* Date Line */}
-        <div className="flex items-center gap-3">
-            <div 
-                className="h-px w-8 bg-white/60"
-                style={{ backgroundColor: accentColor }}
-            ></div>
-            <span className="text-white/90 text-lg md:text-xl font-light tracking-widest uppercase">
-                {formatDate(time)}
-            </span>
+      {/* 
+        Liquid Glass Hover Container 
+        - Enhanced fluid physics with cubic-bezier(0.25, 1, 0.5, 1)
+        - Deep multi-layered glow using box-shadow
+        - Smooth backdrop blur transition
+      */}
+      <div className="group relative p-10 -m-10 rounded-[4rem] transition-all duration-700 ease-[cubic-bezier(0.25,1,0.5,1)] 
+        hover:scale-[1.04] 
+        hover:bg-white/[0.08] 
+        hover:backdrop-blur-2xl 
+        hover:shadow-[0_0_80px_-10px_rgba(255,255,255,0.25),inset_0_0_40px_rgba(255,255,255,0.05)] 
+        border border-transparent hover:border-white/20 
+        cursor-default"
+      >
+        {/* 
+          Apple-style aesthetics / Android Oreo Cleanliness:
+          - System font (inherited from body)
+          - Very thin weight
+          - Tight tracking
+          - Massive size
+          - No weird colon styling
+        */}
+        <div className="flex items-baseline font-thin tracking-tighter text-white/90 tabular-nums -ml-2 md:-ml-3 leading-none transition-transform duration-700 ease-[cubic-bezier(0.34,1.56,0.64,1)] group-hover:scale-[1.01] group-hover:text-white">
+          <span className="text-[6rem] md:text-[8rem] lg:text-[10rem] drop-shadow-2xl">{hours}:{minutes}</span>
+          {showMilliseconds && (
+            <div className="flex items-baseline ml-2 md:ml-4 transition-all duration-300 animate-in fade-in slide-in-from-left-4">
+              <span className="text-[3rem] md:text-[4rem] lg:text-[5rem] opacity-70 font-light">:{seconds}</span>
+              <span className="text-[1.5rem] md:text-[2rem] lg:text-[2.5rem] opacity-40 font-light w-[3ch] ml-1">.{ms}</span>
+            </div>
+          )}
         </div>
-
-        {/* Time Line */}
-        <h1 className="text-6xl md:text-8xl font-thin text-white tracking-tight leading-none mt-2 tabular-nums mix-blend-overlay">
-          {formatTime(time)}
-        </h1>
-        <h1 className="text-6xl md:text-8xl font-thin text-white tracking-tight leading-none -mt-[1em] tabular-nums opacity-60 mask-image-gradient blur-[1px]">
-          {formatTime(time)}
-        </h1>
+        <div className="text-lg md:text-2xl font-light tracking-wide mt-2 opacity-60 ml-1 transition-all duration-500 group-hover:opacity-100 group-hover:translate-x-2">
+          {dateString}
+        </div>
       </div>
     </div>
   );

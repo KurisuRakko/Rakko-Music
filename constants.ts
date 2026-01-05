@@ -7,5 +7,5 @@ export const DEFAULT_SETTINGS = {
   showClock: true,
   clockTimezone: "Intl.DateTimeFormat().resolvedOptions().timeZone",
   performanceMode: false,
-  controllerIdleMode: true,
+  idleMode: true,
 };

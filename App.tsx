@@ -410,6 +410,43 @@ const App: React.FC = () => {
   const isShelf = appMode === 'shelf';
   const isStandard = appMode === 'standard';
 
+  // --- Idle Mode Logic ---
+  const [isIdle, setIsIdle] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const resetIdle = () => {
+      lastActivityRef.current = Date.now();
+      if (isIdle) setIsIdle(false);
+
+      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+
+      if (settings.idleMode) {
+        idleTimeoutRef.current = setTimeout(() => {
+          setIsIdle(true);
+        }, 5000); // 5 seconds idle
+      }
+    };
+
+    window.addEventListener('mousemove', resetIdle);
+    window.addEventListener('keydown', resetIdle);
+    window.addEventListener('touchstart', resetIdle);
+    window.addEventListener('click', resetIdle);
+    window.addEventListener('scroll', resetIdle);
+
+    resetIdle();
+
+    return () => {
+      window.removeEventListener('mousemove', resetIdle);
+      window.removeEventListener('keydown', resetIdle);
+      window.removeEventListener('touchstart', resetIdle);
+      window.removeEventListener('click', resetIdle);
+      window.removeEventListener('scroll', resetIdle);
+      if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+    };
+  }, [settings.idleMode, isIdle]);
+
   // --- Presentation Sync Hook ---
   // Determine Role based on URL
   const isController = new URLSearchParams(window.location.search).get('mode') === 'controller';
@@ -596,17 +633,19 @@ const App: React.FC = () => {
       )}
 
       {/* === FLOATING MODE CONTROLS === */}
-      <ModeControls
-        appMode={appMode}
-        setAppMode={setAppMode}
-        showPrismBg={showPrismBg}
-        setShowPrismBg={setShowPrismBg}
-        isFullscreen={isFullscreen}
-        toggleFullscreen={toggleFullscreen}
-        onEnterShelf={handleEnterShelfView}
-        onExitShelf={exitShelfMode}
-        performanceMode={settings.performanceMode}
-      />
+      <div className={`transition-all duration-500 ${isIdle ? 'opacity-0 pointer-events-none translate-y-[-20px]' : 'opacity-100 translate-y-0'}`}>
+        <ModeControls
+          appMode={appMode}
+          setAppMode={setAppMode}
+          showPrismBg={showPrismBg}
+          setShowPrismBg={setShowPrismBg}
+          isFullscreen={isFullscreen}
+          toggleFullscreen={toggleFullscreen}
+          onEnterShelf={handleEnterShelfView}
+          onExitShelf={exitShelfMode}
+          performanceMode={settings.performanceMode}
+        />
+      </div>
 
       {/* === MAIN LAYOUT CONTAINER === */}
       <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${(isCoverFlow || isShelf) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -641,6 +680,7 @@ const App: React.FC = () => {
           <div className={`
                 flex transition-all duration-1000 ease-elegant w-full
                 ${isImmersive ? 'flex-row items-center gap-4' : 'flex-col items-center max-w-2xl mx-auto'}
+                ${isIdle && !isImmersive ? 'translate-y-[15vh] scale-110' : 'translate-y-0 scale-100'}
             `}>
 
             {/* Album Art */}
@@ -708,7 +748,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Full Controls (Normal Mode Only) */}
-          <div className={`w-full transition-all duration-700 ease-elegant ${isImmersive ? 'opacity-0 pointer-events-none h-0 overflow-hidden' : 'opacity-100 h-auto'}`}>
+          <div className={`w-full transition-all duration-700 ease-elegant ${isImmersive ? 'opacity-0 pointer-events-none h-0 overflow-hidden' : 'opacity-100 h-auto'} ${isIdle ? 'opacity-0 translate-y-10 pointer-events-none' : ''}`}>
             <Controls
               audioState={audioState}
               onPlayPause={togglePlayPause}
@@ -791,7 +831,7 @@ const App: React.FC = () => {
           {/* Settings Button */}
           <button
             onClick={() => setShowSettings(true)}
-            className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
+            className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive || isIdle ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
             <SettingsIcon size={20} />
           </button>
         </div>
