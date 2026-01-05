@@ -1,5 +1,5 @@
 
-```
+
 import React, { useRef, useEffect } from 'react';
 import { Song, AudioState } from '../types';
 import { Play, Pause, SkipBack, SkipForward, Repeat, Shuffle, Volume2, Music2 } from 'lucide-react';
@@ -27,7 +27,7 @@ const ControllerView: React.FC<ControllerViewProps> = ({
     // Auto-scroll to active song
     useEffect(() => {
         if (currentSong && scrollRef.current) {
-            const activeEl = document.getElementById(`ctrl - song - ${ currentSong.id } `);
+            const activeEl = document.getElementById(`ctrl-song-${currentSong.id}`);
             if (activeEl) {
                 activeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
@@ -53,13 +53,13 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                 <div className="flex gap-2">
                     <button
                         onClick={() => sendCommand('SET_SHUFFLE', !audioState.isShuffle)}
-                        className={`p - 2 rounded - lg transition - all ${ audioState.isShuffle ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70' } `}
+                        className={`p-2 rounded-lg transition-all ${audioState.isShuffle ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
                     >
                         <Shuffle size={16} />
                     </button>
                     <button
                         onClick={() => sendCommand('SET_LOOP', !audioState.isLooping)}
-                        className={`p - 2 rounded - lg transition - all ${ audioState.isLooping ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70' } `}
+                        className={`p-2 rounded-lg transition-all ${audioState.isLooping ? 'bg-white/10 text-white' : 'text-white/30 hover:text-white/70'}`}
                     >
                         <Repeat size={16} />
                     </button>
@@ -104,7 +104,7 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                         onChange={(e) => sendCommand('SEEK', Number(e.target.value))}
                         className="flex-1 h-1.5 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white hover:[&::-webkit-slider-thumb]:scale-125 transition-all"
                         style={{
-                            background: `linear - gradient(to right, ${ accentColor } ${(audioState.currentTime / (audioState.duration || 1)) * 100}%, rgba(255, 255, 255, 0.1) 0)`
+                            background: `linear-gradient(to right, ${accentColor} ${(audioState.currentTime / (audioState.duration || 1)) * 100}%, rgba(255, 255, 255, 0.1) 0)`
                         }}
                     />
                     <span className="text-xs text-white/30 font-mono w-10">
@@ -158,11 +158,11 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                     return (
                         <div
                             key={song.id}
-                            id={`ctrl - song - ${ song.id } `}
+                            id={`ctrl-song-${song.id}`}
                             onClick={() => sendCommand('PLAY_SONG', song)}
-                            className={`group flex items - center gap - 3 p - 3 rounded - xl transition - all cursor - pointer ${ isCurrent ? 'bg-white/10 border border-white/5' : 'hover:bg-white/5 border border-transparent' } `}
+                            className={`group flex items-center gap-3 p-3 rounded-xl transition-all cursor-pointer ${isCurrent ? 'bg-white/10 border border-white/5' : 'hover:bg-white/5 border border-transparent'}`}
                         >
-                            <div className={`w - 10 h - 10 rounded - lg flex items - center justify - center ${ isCurrent ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10' } `}>
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isCurrent ? 'bg-white/20' : 'bg-white/5 group-hover:bg-white/10'}`}>
                                 {isCurrent && audioState.isPlaying ? (
                                     <div className="flex gap-0.5 items-end h-3">
                                         <div className="w-1 bg-white animate-[music-bar_0.5s_ease-in-out_infinite]" />
@@ -174,7 +174,7 @@ const ControllerView: React.FC<ControllerViewProps> = ({
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className={`font - medium truncate ${ isCurrent ? 'text-white' : 'text-white/80' } `}>
+                                <div className={`font-medium truncate ${isCurrent ? 'text-white' : 'text-white/80'}`}>
                                     {song.metadata?.title || song.name}
                                 </div>
                                 <div className="text-xs text-white/40 truncate">
