@@ -785,7 +785,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Full Controls (Normal Mode Only) */}
-          <div className={`w-full transition-all duration-700 ease-elegant ${isImmersive ? 'opacity-0 pointer-events-none h-0 overflow-hidden' : 'opacity-100 h-auto'} ${isIdle ? 'opacity-0 translate-y-10 pointer-events-none' : ''}`}>
+          <div className={`w-full transition-all duration-700 ease-elegant ${isImmersive || isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'} ${isImmersive ? 'h-0 overflow-hidden' : 'h-auto'} ${isIdle ? 'translate-y-10' : ''}`}>
             <Controls
               audioState={audioState}
               onPlayPause={togglePlayPause}
