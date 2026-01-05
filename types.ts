@@ -31,8 +31,7 @@ export interface AppSettings {
   wallpaper: string;
   bassBoost: boolean;
   accentColor: string;
-  showClock: boolean;
-  clockTimezone: string;
+
   performanceMode: boolean;
   idleMode: boolean;
 }

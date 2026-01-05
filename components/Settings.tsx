@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, Zap, Palette, Clock, Globe, Gauge } from 'lucide-react';
+import { X, Image as ImageIcon, Zap, Palette, Gauge } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SettingsProps {
@@ -41,17 +41,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
     "#ef4444", // Red
   ];
 
-  const timezones = [
-    "Local",
-    "UTC",
-    "America/New_York",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Europe/Paris",
-    "Asia/Tokyo",
-    "Asia/Shanghai",
-    "Australia/Sydney"
-  ];
+
 
   return (
     <div
@@ -186,56 +176,7 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
                 </label>
               </div>
 
-              {/* Clock Toggle */}
-              <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-white/10 rounded-xl text-white/70">
-                    <Clock size={20} />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-semibold text-white">Immersive Clock</h3>
-                    <p className="text-xs text-white/40">Show date & time in immersive mode</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex items-center cursor-pointer group">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={settings.showClock}
-                    onChange={(e) => onUpdateSettings({ ...settings, showClock: e.target.checked })}
-                  />
-                  <div
-                    className={`w-11 h-6 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all duration-300 group-hover:scale-105 shadow-inner`}
-                    style={{ backgroundColor: settings.showClock ? settings.accentColor : undefined }}
-                  ></div>
-                </label>
-              </div>
 
-              {/* Timezone Selector */}
-              {settings.showClock && (
-                <div className="space-y-2 animate-slide-up-fade">
-                  <label className="text-sm font-medium text-white/70 flex items-center gap-2 pl-1">
-                    <Globe size={14} />
-                    Timezone
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={settings.clockTimezone}
-                      onChange={(e) => onUpdateSettings({ ...settings, clockTimezone: e.target.value })}
-                      className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none appearance-none transition-all hover:border-white/20 focus:border-white/40"
-                    >
-                      {timezones.map(tz => (
-                        <option key={tz} value={tz} className="bg-[#1e1e2e] text-white">
-                          {tz}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
-                      <Globe size={16} />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* Customization Section */}

@@ -10,7 +10,6 @@ import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
 import ShelfView from './components/ShelfView';
 import ModeControls from './components/ModeControls';
-import Clock from './components/Clock';
 import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic } from 'lucide-react';
 import { usePresentationSync } from './hooks/usePresentationSync';
 import ControllerView from './components/ControllerView';
@@ -36,8 +35,7 @@ const App: React.FC = () => {
     wallpaper: WALLPAPER_URL,
     bassBoost: false,
     accentColor: DEFAULT_ACCENT_COLOR,
-    showClock: true,
-    clockTimezone: 'Local',
+
     performanceMode: DEFAULT_SETTINGS.performanceMode,
     idleMode: DEFAULT_SETTINGS.idleMode
   });
@@ -442,8 +440,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const startTimer = () => {
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-      // Only activate idle mode when NOT in immersive mode
-      if (settings.idleMode && !isImmersive) {
+      if (settings.idleMode) {
         idleTimeoutRef.current = setTimeout(() => {
           setIsIdle(true);
         }, 5000);
@@ -472,7 +469,7 @@ const App: React.FC = () => {
       window.removeEventListener('scroll', onActivity);
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [settings.idleMode, isImmersive]);
+  }, [settings.idleMode]);
 
   // --- Presentation Sync Hook ---
   // Determine Role based on URL
@@ -563,10 +560,7 @@ const App: React.FC = () => {
         </div>
       </div>
 
-      {/* === IMMERSIVE CLOCK === */}
-      {isImmersive && settings.showClock && (
-        <Clock timezone={settings.clockTimezone} accentColor={settings.accentColor} />
-      )}
+
 
       {/* === BACKGROUND LAYER === */}
       <div className="absolute inset-0 z-0 overflow-hidden">
@@ -769,7 +763,7 @@ const App: React.FC = () => {
             {/* Immersive Mini Play Button */}
             <button
               onClick={togglePlayPause}
-              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
+              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive && !isIdle ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
             >
               {audioState.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
             </button>
