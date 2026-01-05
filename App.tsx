@@ -633,7 +633,7 @@ const App: React.FC = () => {
       )}
 
       {/* === FLOATING MODE CONTROLS === */}
-      <div className={`transition-all duration-500 ${isIdle ? 'opacity-0 pointer-events-none translate-y-[-20px]' : 'opacity-100 translate-y-0'}`}>
+      <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 ${isIdle ? 'opacity-0 pointer-events-none translate-y-[-20px]' : 'opacity-100 translate-y-0'}`}>
         <ModeControls
           appMode={appMode}
           setAppMode={setAppMode}

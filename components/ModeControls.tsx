@@ -79,7 +79,7 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
   );
 
   return (
-    <div className="fixed top-6 right-6 z-[200] flex flex-col items-end gap-2">
+    <div className="flex flex-col items-end gap-2">
       {/* HUD Container */}
       <div
         className={`
