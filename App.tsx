@@ -147,6 +147,7 @@ const App: React.FC = () => {
 
   // --- Song Change Effect ---
   useEffect(() => {
+    console.log("[App] currentSong effect triggered. Song:", currentSong?.name, "ID:", currentSong?.id);
     if (currentSong) {
       console.log("[App] Song Changed:", currentSong.name);
       audioRef.current.src = currentSong.url;
@@ -165,6 +166,7 @@ const App: React.FC = () => {
       });
 
     } else {
+      console.log("[App] currentSong is null, pausing");
       audioRef.current.pause();
       setAudioState(prev => ({ ...prev, isPlaying: false }));
       setCurrentCover(null);
