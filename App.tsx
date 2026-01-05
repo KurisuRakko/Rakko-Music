@@ -31,14 +31,28 @@ const App: React.FC = () => {
     isShuffle: false,
   });
 
-  const [settings, setSettings] = useState<AppSettings>({
-    wallpaper: WALLPAPER_URL,
-    bassBoost: false,
-    accentColor: DEFAULT_ACCENT_COLOR,
-
-    performanceMode: DEFAULT_SETTINGS.performanceMode,
-    idleMode: DEFAULT_SETTINGS.idleMode
+  const [settings, setSettings] = useState<AppSettings>(() => {
+    const saved = localStorage.getItem('rakko_settings');
+    if (saved) {
+      try {
+        return { ...DEFAULT_SETTINGS, ...JSON.parse(saved) };
+      } catch (e) {
+        console.error("Failed to parse settings", e);
+      }
+    }
+    return {
+      wallpaper: WALLPAPER_URL,
+      bassBoost: false,
+      accentColor: DEFAULT_ACCENT_COLOR,
+      performanceMode: DEFAULT_SETTINGS.performanceMode,
+      idleMode: DEFAULT_SETTINGS.idleMode
+    };
   });
+
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem('rakko_settings', JSON.stringify(settings));
+  }, [settings]);
 
   // Loading State
   const [isLoading, setIsLoading] = useState(true);
@@ -656,7 +670,7 @@ const App: React.FC = () => {
       )}
 
       {/* === FLOATING MODE CONTROLS === */}
-      <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 ${isIdle ? 'opacity-0 pointer-events-none translate-y-[-20px]' : 'opacity-100 translate-y-0'}`}>
+      <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 opacity-100 translate-y-0`}>
         <ModeControls
           appMode={appMode}
           setAppMode={setAppMode}
