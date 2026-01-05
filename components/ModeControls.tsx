@@ -13,6 +13,7 @@ interface ModeControlsProps {
   onEnterShelf: () => void;
   onExitShelf: () => void;
   performanceMode?: boolean;
+  isIdle?: boolean;
 }
 
 const ModeControls: React.FC<ModeControlsProps> = React.memo(({
@@ -24,9 +25,12 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
   toggleFullscreen,
   onEnterShelf,
   onExitShelf,
-  performanceMode = false
+  performanceMode = false,
+  isIdle = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
+
+  const effectiveCollapsed = isCollapsed || isIdle;
 
   const isStandard = appMode === 'standard';
   const isCoverFlow = appMode === 'coverflow';
@@ -111,7 +115,7 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
           className={`
                 flex items-center gap-0.5 overflow-hidden 
                 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] origin-right
-                ${isCollapsed
+                ${effectiveCollapsed
               ? 'max-w-0 opacity-0 scale-90 -translate-x-2 pointer-events-none'
               : 'max-w-[400px] opacity-100 scale-100 translate-x-0'
             }
@@ -190,9 +194,9 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
                 relative z-10 w-10 h-10 rounded-full flex items-center justify-center shrink-0
                 text-white/40 hover:text-white hover:bg-white/10
                 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)] active:scale-90
-                ${isCollapsed ? 'rotate-180 bg-white/5 text-white' : 'rotate-0'}
+                ${effectiveCollapsed ? 'rotate-180 bg-white/5 text-white' : 'rotate-0'}
             `}
-          title={isCollapsed ? "Expand" : "Collapse"}
+          title={effectiveCollapsed ? "Expand" : "Collapse"}
         >
           <ChevronRight size={18} />
         </button>

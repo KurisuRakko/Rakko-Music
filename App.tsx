@@ -670,7 +670,7 @@ const App: React.FC = () => {
       )}
 
       {/* === FLOATING MODE CONTROLS === */}
-      <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 ${isIdle ? 'opacity-0 -translate-y-20 pointer-events-none' : 'opacity-100 translate-y-0'}`}>
+      <div className={`fixed top-6 right-6 z-[200] transition-all duration-500 opacity-100 translate-y-0`}>
         <ModeControls
           appMode={appMode}
           setAppMode={setAppMode}
@@ -681,6 +681,7 @@ const App: React.FC = () => {
           onEnterShelf={handleEnterShelfView}
           onExitShelf={exitShelfMode}
           performanceMode={settings.performanceMode}
+          isIdle={isIdle}
         />
       </div>
 
