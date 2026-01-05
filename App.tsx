@@ -425,22 +425,22 @@ const App: React.FC = () => {
   const [isIdle, setIsIdle] = useState(false);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Reset idle mode when entering immersive/coverflow/shelf mode
+  // Reset idle mode when entering immersive/coverflow/shelf mode, or if not playing
   useEffect(() => {
-    if (isImmersive || isCoverFlow || isShelf) {
+    if (isImmersive || isCoverFlow || isShelf || !audioState.isPlaying) {
       setIsIdle(false);
       if (idleTimeoutRef.current) {
         clearTimeout(idleTimeoutRef.current);
         idleTimeoutRef.current = null;
       }
     }
-  }, [isImmersive, isCoverFlow, isShelf]);
+  }, [isImmersive, isCoverFlow, isShelf, audioState.isPlaying]);
 
 
   useEffect(() => {
     const startTimer = () => {
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-      if (settings.idleMode) {
+      if (settings.idleMode && audioState.isPlaying) {
         idleTimeoutRef.current = setTimeout(() => {
           setIsIdle(true);
         }, 5000);
@@ -469,7 +469,7 @@ const App: React.FC = () => {
       window.removeEventListener('scroll', onActivity);
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [settings.idleMode]);
+  }, [settings.idleMode, audioState.isPlaying]);
 
   // --- Presentation Sync Hook ---
   // Determine Role based on URL
@@ -682,7 +682,7 @@ const App: React.FC = () => {
           }
         `}>
           {/* Logo Header (Normal Mode Only) */}
-          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : (isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100')}`}>
+          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center gap-2 text-white/90">
               <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md shadow-inner`}>
                 <Music2 size={20} style={{ color: settings.accentColor }} />
@@ -797,7 +797,7 @@ const App: React.FC = () => {
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
           {/* Right Header (Desktop Actions) */}
-          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 ${isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 opacity-100`}>
             <button onClick={() => {
               setIsMobileLibraryOpen(false);
             }} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
