@@ -71,7 +71,7 @@ const ShelfItem = ({
         }}
       >
         {cover ? (
-          <img src={cover} alt={song.name} className="w-full h-full object-cover" />
+          <img src={cover} alt={song.name} className="w-full h-full object-cover block" />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center bg-white/5 p-4 text-center bg-gradient-to-br from-white/10 to-black/40">
             <Disc size={32} className="mb-2 opacity-30" />
@@ -329,6 +329,8 @@ const ShelfView: React.FC<ShelfViewProps> = ({
         }} />
       </div>
 
+
+
       {/* Items Layer */}
       <div
         className="absolute top-0 left-0 w-full h-full pointer-events-none"
@@ -336,19 +338,20 @@ const ShelfView: React.FC<ShelfViewProps> = ({
       >
         {songs.map((song, i) => {
           const isActive = song.id === currentSong?.id;
+          // Calculate style here in the parent render cycle to ensure reactivity on resize
+          const baseStyle = calculateStyles(i);
+
           return (
             <ShelfItemWrapper
               key={song.id}
               song={song}
-              index={i}
               isActive={isActive}
               isPlaying={isPlaying}
               accentColor={accentColor}
-              calculateStyles={calculateStyles}
+              baseStyle={baseStyle} // Pass calculated style directly
               containerRef={containerRef}
               viewState={viewState}
               onSelect={(s: Song) => {
-                // Direct selection bypasses exit animation (Instant Exit)
                 onSelect(s);
               }}
               performanceMode={performanceMode}
@@ -356,17 +359,21 @@ const ShelfView: React.FC<ShelfViewProps> = ({
           );
         })}
       </div>
-    </div>
+    </div >
   );
 };
 
 const ShelfItemWrapper = ({
-  song, index, isActive, isPlaying, accentColor, calculateStyles, containerRef, viewState, onSelect, performanceMode
+  song, isActive, isPlaying, accentColor, baseStyle, containerRef, viewState, onSelect, performanceMode
 }: any) => {
   const [scrollX, setScrollX] = useState(0);
-  const baseStyle = calculateStyles(index);
 
   useEffect(() => {
+    // Initialize scroll position
+    if (containerRef.current) {
+      setScrollX(containerRef.current.scrollLeft);
+    }
+
     const handleScroll = () => {
       if (containerRef.current) {
         setScrollX(containerRef.current.scrollLeft);
@@ -392,7 +399,8 @@ const ShelfItemWrapper = ({
   return (
     <ShelfItem
       song={song}
-      index={index}
+      // index is no longer needed for calculation here
+      index={0}
       isActive={isActive}
       isPlaying={isPlaying}
       accentColor={accentColor}
