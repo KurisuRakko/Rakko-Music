@@ -151,6 +151,17 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
             label="Shelf"
           />
 
+          <ControlButton
+            isActive={false}
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.searchParams.set('mode', 'controller');
+              window.open(url.toString(), 'RakkoController', 'width=375,height=812');
+            }}
+            icon={<Smartphone size={18} />}
+            label="Remote"
+          />
+
           <Separator />
 
           <ControlButton
