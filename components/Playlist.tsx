@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Song } from '../types';
-import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical } from 'lucide-react';
+import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical, FolderPlus } from 'lucide-react';
 
 interface PlaylistProps {
   songs: Song[];
@@ -8,6 +8,7 @@ interface PlaylistProps {
   isPlaying: boolean;
   onSelect: (song: Song) => void;
   onAddFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onAddFolderAPI?: () => void;
   onRemoveSong: (id: string) => void;
   onUpdateLyrics: (id: string, lyrics: string) => void;
   onReorder: (sourceIndex: number, destinationIndex: number) => void;
@@ -20,6 +21,7 @@ const Playlist: React.FC<PlaylistProps> = ({
   isPlaying,
   onSelect,
   onAddFiles,
+  onAddFolderAPI,
   onRemoveSong,
   onUpdateLyrics,
   onReorder,
@@ -125,18 +127,47 @@ const Playlist: React.FC<PlaylistProps> = ({
       <div className="px-6 md:px-8 pb-4 animate-slide-up-fade">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Library</h2>
-          <label className="cursor-pointer group relative">
-            <input
-              type="file"
-              accept="audio/*,.lrc,.txt"
-              multiple
-              className="hidden"
-              onChange={onAddFiles}
-            />
-            <div className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 active:rotate-90 ease-spring">
-              <Plus size={20} />
-            </div>
-          </label>
+          <div className="flex items-center gap-2">
+            {/* Add Folder Button */}
+            {onAddFolderAPI ? (
+              <button
+                onClick={onAddFolderAPI}
+                className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
+                title="Open Folder"
+              >
+                <FolderPlus size={20} />
+              </button>
+            ) : (
+              <label className="cursor-pointer group relative">
+                <input
+                  type="file"
+                  // @ts-ignore
+                  webkitdirectory=""
+                  directory=""
+                  multiple
+                  className="hidden"
+                  onChange={onAddFiles}
+                />
+                <div className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 active:rotate-90 ease-spring" title="Add Folder">
+                  <FolderPlus size={20} />
+                </div>
+              </label>
+            )}
+
+            {/* Add Files Button */}
+            <label className="cursor-pointer group relative">
+              <input
+                type="file"
+                accept="audio/*,.lrc,.txt"
+                multiple
+                className="hidden"
+                onChange={onAddFiles}
+              />
+              <div className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 active:rotate-90 ease-spring" title="Add Files">
+                <Plus size={20} />
+              </div>
+            </label>
+          </div>
         </div>
         <p className="text-white/40 text-sm font-medium">{songs.length} Tracks</p>
       </div>

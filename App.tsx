@@ -308,6 +308,18 @@ const App: React.FC = () => {
     }
   };
 
+  const handleFolderSelectAPI = async () => {
+    try {
+      const { openDirectoryAndGetFiles } = await import('./utils/fileSystem');
+      const files = await openDirectoryAndGetFiles();
+      if (files.length > 0) {
+        processFiles(files);
+      }
+    } catch (err) {
+      console.error("Failed to open directory:", err);
+    }
+  };
+
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -663,7 +675,7 @@ const App: React.FC = () => {
           }
         `}>
           {/* Logo Header (Normal Mode Only) */}
-          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive || isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center gap-2 text-white/90">
               <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md shadow-inner`}>
                 <Music2 size={20} style={{ color: settings.accentColor }} />
@@ -744,7 +756,7 @@ const App: React.FC = () => {
             {/* Immersive Mini Play Button */}
             <button
               onClick={togglePlayPause}
-              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
+              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive && !isIdle ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
             >
               {audioState.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
             </button>
@@ -778,7 +790,7 @@ const App: React.FC = () => {
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
           {/* Right Header (Desktop Actions) */}
-          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50`}>
+          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 ${isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <button onClick={() => {
               setIsMobileLibraryOpen(false);
             }} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -809,6 +821,7 @@ const App: React.FC = () => {
                   if (window.innerWidth < 768) setIsMobileLibraryOpen(false);
                 }}
                 onAddFiles={handleFileSelect}
+                onAddFolderAPI={handleFolderSelectAPI}
                 onRemoveSong={handleRemoveSong}
                 onUpdateLyrics={handleUpdateLyrics}
                 onReorder={handleReorder}
