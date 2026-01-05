@@ -427,10 +427,23 @@ const App: React.FC = () => {
   const [isIdle, setIsIdle] = useState(false);
   const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset idle mode when entering immersive/coverflow/shelf mode
+  useEffect(() => {
+    if (isImmersive || isCoverFlow || isShelf) {
+      setIsIdle(false);
+      if (idleTimeoutRef.current) {
+        clearTimeout(idleTimeoutRef.current);
+        idleTimeoutRef.current = null;
+      }
+    }
+  }, [isImmersive, isCoverFlow, isShelf]);
+
+
   useEffect(() => {
     const startTimer = () => {
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
-      if (settings.idleMode) {
+      // Only activate idle mode when NOT in immersive mode
+      if (settings.idleMode && !isImmersive) {
         idleTimeoutRef.current = setTimeout(() => {
           setIsIdle(true);
         }, 5000);
@@ -459,7 +472,7 @@ const App: React.FC = () => {
       window.removeEventListener('scroll', onActivity);
       if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
     };
-  }, [settings.idleMode]);
+  }, [settings.idleMode, isImmersive]);
 
   // --- Presentation Sync Hook ---
   // Determine Role based on URL
@@ -675,7 +688,7 @@ const App: React.FC = () => {
           }
         `}>
           {/* Logo Header (Normal Mode Only) */}
-          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive || isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : (isIdle ? 'opacity-0 pointer-events-none' : 'opacity-100')}`}>
             <div className="flex items-center gap-2 text-white/90">
               <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md shadow-inner`}>
                 <Music2 size={20} style={{ color: settings.accentColor }} />
@@ -756,7 +769,7 @@ const App: React.FC = () => {
             {/* Immersive Mini Play Button */}
             <button
               onClick={togglePlayPause}
-              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive && !isIdle ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
+              className={`flex-shrink-0 p-3 bg-white text-black rounded-full hover:scale-105 active:scale-95 transition-all duration-500 ease-spring ${isImmersive ? 'opacity-100 scale-100 visible' : 'opacity-0 scale-0 invisible w-0 h-0 p-0'}`}
             >
               {audioState.isPlaying ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
             </button>
