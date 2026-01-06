@@ -195,11 +195,14 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
             }
         } catch (e: any) { if (e.name === 'AbortError') throw e; }
 
+        const audioFile = new File([audioBlob], `music.${foundExt}`, { type: audioBlob.type });
+
         return {
             id: Math.random().toString(36).substr(2, 9),
             name: info.title,
             artist: info.artists.join(', ') || 'Unknown Artist',
             url: localAudioUrl,
+            file: audioFile,
             videoUrl: localVideoUrl,
             lyrics,
             metadata: info,
