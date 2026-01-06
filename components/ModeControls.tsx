@@ -204,7 +204,8 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
         {/* Shimmer Effect - HIDDEN IN PERFORMANCE MODE */}
         {/* Removed potentially distracting animation */}
       </div>
-      );
+    </div>
+  );
 });
 
-      export default ModeControls;
+export default ModeControls;

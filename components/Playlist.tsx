@@ -157,14 +157,7 @@ const Playlist: React.FC<PlaylistProps> = ({
               </label>
             )}
 
-            {/* Mystery Code Button */}
-            <button
-              onClick={onOpenMysteryCode}
-              className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
-              title="Enter Mystery Code"
-            >
-              <ScanEye size={20} />
-            </button>
+
 
             {/* Add Files Button */}
             <label className="cursor-pointer group relative">
@@ -179,6 +172,15 @@ const Playlist: React.FC<PlaylistProps> = ({
                 <Plus size={20} />
               </div>
             </label>
+
+            {/* Mystery Code Button */}
+            <button
+              onClick={onOpenMysteryCode}
+              className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
+              title="Enter Mystery Code"
+            >
+              <ScanEye size={20} />
+            </button>
           </div>
         </div>
         <p className="text-white/40 text-sm font-medium">{songs.length} Tracks</p>
