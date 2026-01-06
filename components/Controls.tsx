@@ -51,7 +51,7 @@ const Controls: React.FC<ControlsProps> = ({
       <div className="flex items-center justify-between">
 
         {/* Shuffle / Loop (Animation Spot #3: Icon Hover) */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3 md:gap-5">
           <button
             onClick={onToggleShuffle}
             className={`transition-all duration-300 hover:scale-110 active:scale-95 ease-spring ${!audioState.isShuffle ? 'text-white/30 hover:text-white' : ''}`}
@@ -71,7 +71,7 @@ const Controls: React.FC<ControlsProps> = ({
         </div>
 
         {/* Playback Controls (Animation Spot #4: Spring Buttons) */}
-        <div className="flex items-center gap-8">
+        <div className="flex items-center gap-4 md:gap-8">
           <button
             onClick={onPrev}
             className="text-white transition-all duration-300 active:scale-75 hover:scale-110 hover:opacity-80 hover:-translate-x-1 ease-spring"
@@ -99,7 +99,7 @@ const Controls: React.FC<ControlsProps> = ({
         </div>
 
         {/* Volume (Animation Spot #5: Reveal Slider) */}
-        <div className="flex items-center gap-3 group w-28 justify-end transition-all duration-300 hover:w-36">
+        <div className="flex items-center gap-2 md:gap-3 group w-20 md:w-28 justify-end transition-all duration-300 hover:w-36">
           <button
             className="text-white/40 group-hover:text-white transition-colors active:scale-90 ease-spring"
             onClick={() => {

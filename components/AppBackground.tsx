@@ -1,7 +1,7 @@
 
 import React, { RefObject } from 'react';
 import { Song, AppMode, AppSettings } from '../types';
-import Visualizer from './Visualizer';
+
 
 interface AppBackgroundProps {
     appMode: AppMode;
@@ -81,16 +81,6 @@ const AppBackground: React.FC<AppBackgroundProps> = ({
                                 filter: 'brightness(1)',
                             }}
                         >
-                            {/* Visualizer Layer - Visible in Immersive Mode when no video */}
-                            {/* Visualizer Layer - Persistent to maintain AudioContext */}
-                            <div className={`absolute inset-0 z-0 flex items-end transition-opacity duration-1000 ${isImmersive ? 'opacity-100' : 'opacity-0'}`}>
-                                <Visualizer
-                                    audioElement={audioElement}
-                                    isPlaying={isPlaying}
-                                    bassBoost={settings.bassBoost}
-                                    accentColor={settings.accentColor}
-                                />
-                            </div>
                         </div>
                     )}
 

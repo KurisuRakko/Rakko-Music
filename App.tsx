@@ -10,7 +10,7 @@ import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
 import ShelfView from './components/ShelfView';
 import ModeControls from './components/ModeControls';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic, Video } from 'lucide-react';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic, Video, X } from 'lucide-react';
 import { usePresentationSync } from './hooks/usePresentationSync';
 import ControllerView from './components/ControllerView';
 import AppBackground from './components/AppBackground';
@@ -856,10 +856,10 @@ const App: React.FC = () => {
 
         {/* === RIGHT PANEL: Content (Lyrics / Library) === */}
         <div className={`
-           flex flex-col relative z-10 transition-all duration-1000 ease-elegant
+           flex flex-col transition-all duration-500 ease-elegant
            ${isImmersive
-            ? 'w-full h-full fixed inset-0 pl-0 md:pl-[35%] bg-transparent'
-            : 'md:w-1/2 bg-black/20 backdrop-blur-xl md:backdrop-blur-none border-l border-white/5'
+            ? 'fixed inset-0 z-30 w-full h-full pl-0 md:pl-[35%] bg-transparent pointer-events-none md:pointer-events-auto'
+            : 'fixed inset-0 z-50 md:static md:z-10 md:w-1/2 bg-black/95 md:bg-black/20 backdrop-blur-3xl md:backdrop-blur-none border-l border-white/5'
           }
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
@@ -927,6 +927,38 @@ const App: React.FC = () => {
             className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive || isIdle ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
             <SettingsIcon size={20} />
           </button>
+        </div>
+
+
+        {/* === MOBILE LYRICS OVERLAY === */}
+        <div className={`fixed inset-0 z-[60] bg-black/95 backdrop-blur-3xl transition-all duration-500 ease-elegant md:hidden flex flex-col ${isMobileLyricsOpen ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full pointer-events-none'}`}>
+          <div className="flex justify-between items-center p-6 border-b border-white/5 bg-white/5 shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-white/10">
+                <Mic2 size={18} style={{ color: settings.accentColor }} />
+              </div>
+              <span className="text-lg font-bold text-white/90">Lyrics</span>
+            </div>
+            <button
+              onClick={() => setIsMobileLyricsOpen(false)}
+              className="p-3 bg-white/10 rounded-full active:scale-90 transition-transform text-white/80 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-hidden relative w-full h-full">
+            <div className="absolute inset-0 px-4 pb-8">
+              <LyricsView
+                lyrics={currentSong?.lyrics}
+                currentTime={audioState.currentTime}
+                onImportLyrics={handleCurrentLyricsImport}
+                accentColor={settings.accentColor}
+                onSeek={handleSeekToTime}
+                variant="immersive"
+                performanceMode={settings.performanceMode}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Settings Modal */}
