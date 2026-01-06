@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, AudioState, AppSettings, AppMode } from './types';
 import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR, DEFAULT_SETTINGS } from './constants';
-import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics } from './utils';
+import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics, matchVideos, VideoFile } from './utils';
 import Controls from './components/Controls';
 import Playlist from './components/Playlist';
 import Settings from './components/Settings';
@@ -10,7 +10,7 @@ import LyricsView from './components/LyricsView';
 import CoverFlow from './components/CoverFlow';
 import ShelfView from './components/ShelfView';
 import ModeControls from './components/ModeControls';
-import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic } from 'lucide-react';
+import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic, Video } from 'lucide-react';
 import { usePresentationSync } from './hooks/usePresentationSync';
 import ControllerView from './components/ControllerView';
 
@@ -82,6 +82,7 @@ const App: React.FC = () => {
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(new Audio());
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // --- Effects ---
 
@@ -104,13 +105,23 @@ const App: React.FC = () => {
 
   // --- Audio Event Handlers ---
   const handleTimeUpdate = () => {
-    setAudioState(prev => ({ ...prev, currentTime: audioRef.current.currentTime }));
+    const currentTime = audioRef.current.currentTime;
+    setAudioState(prev => ({ ...prev, currentTime }));
+
+    // Sync Video if it exists
+    if (videoRef.current && currentSong?.videoUrl) {
+      const videoTime = videoRef.current.currentTime;
+      if (Math.abs(videoTime - currentTime) > 0.3) {
+        videoRef.current.currentTime = currentTime;
+      }
+    }
   };
 
   const handleLoadedMetadata = () => {
     setAudioState(prev => ({ ...prev, duration: audioRef.current.duration }));
     if (audioState.isPlaying) {
       audioRef.current.play().catch(e => console.error("Play error:", e));
+      // Video play handled in play/pause effect
     }
   };
 
@@ -133,6 +144,10 @@ const App: React.FC = () => {
     if (audioState.isLooping) {
       audioRef.current.currentTime = 0;
       audioRef.current.play();
+      if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
     } else {
       playNext();
     }
@@ -158,7 +173,19 @@ const App: React.FC = () => {
       // Actually, removing the pause entirely is safer for stability during hot-reloads and prop updates.
       // audio.pause();
     };
-  }, [handleEnded, audioState.volume]);
+  }, [handleEnded, audioState.volume, currentSong /* Re-bind if song changes to ensure closures are fresh if needed, though handlers use refs/state setters mostly */]);
+
+  // --- Video Sync Effect ---
+  useEffect(() => {
+    if (videoRef.current) {
+      if (audioState.isPlaying) {
+        if (videoRef.current.paused) videoRef.current.play().catch(e => console.error("Video play error", e));
+      } else {
+        if (!videoRef.current.paused) videoRef.current.pause();
+      }
+    }
+  }, [audioState.isPlaying]);
+
 
   // --- Song Change Effect ---
   useEffect(() => {
@@ -215,6 +242,7 @@ const App: React.FC = () => {
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = Number(e.target.value);
     audioRef.current.currentTime = time;
+    if (videoRef.current) videoRef.current.currentTime = time;
     setAudioState(prev => ({ ...prev, currentTime: time }));
   };
 
@@ -222,6 +250,7 @@ const App: React.FC = () => {
     console.log("[App] Seek to:", time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
+      if (videoRef.current) videoRef.current.currentTime = time;
       setAudioState(prev => ({ ...prev, currentTime: time }));
       if (!audioState.isPlaying) {
         audioRef.current.play().catch(console.error);
@@ -250,9 +279,10 @@ const App: React.FC = () => {
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
 
-    // 1. Separate Audio and Lyrics files
+    // 1. Separate Audio, Lyrics, and Video files
     const audioFiles = files.filter(f => f.type.startsWith('audio/') || /\.(mp3|wav|ogg|flac|m4a|weba)$/i.test(f.name));
     const lrcFiles = files.filter(f => /\.(lrc|txt)$/i.test(f.name));
+    const videoFiles = files.filter(f => f.type.startsWith('video/') || /\.(mp4|webm|mkv|mov)$/i.test(f.name)).map(f => ({ name: f.name, file: f }));
 
     // 2. Process New Songs
     const newSongs: Song[] = audioFiles.map((file) => {
@@ -281,35 +311,61 @@ const App: React.FC = () => {
       }
     }));
 
-    // 4. Match Lyrics
+    // 4. Match Lyrics and Videos
     const matches = matchLyrics(newSongs, lrcContents);
+    const videoMatches = matchVideos(newSongs, videoFiles); // Check previously loaded videos? No, checking current batch.
 
     newSongs.forEach(song => {
       if (matches[song.id]) {
         song.lyrics = matches[song.id];
       }
+      if (videoMatches[song.id]) {
+        song.videoUrl = videoMatches[song.id];
+      }
     });
 
     // 5. Update State
     setSongs(prevSongs => {
+      // Also checking existing songs against new matches?
+      // For now, let's keep it simple and only match within the batch + what's already there if we wanted to support "add lrc later".
+      // But matching video to existing songs is also good.
       const songsWithoutLyrics = prevSongs.filter(s => !s.lyrics);
+      const songsWithoutVideo = prevSongs.filter(s => !s.videoUrl);
+
       const songsWithLyrics = prevSongs.filter(s => !!s.lyrics);
 
-      if (songsWithoutLyrics.length > 0) {
+      // Try to match existing songs with new resources
+      if (songsWithoutLyrics.length > 0 && lrcContents.length > 0) {
         const existingMatches = matchLyrics(songsWithoutLyrics, lrcContents);
         songsWithoutLyrics.forEach(s => {
-          if (existingMatches[s.id]) {
-            s.lyrics = existingMatches[s.id];
-          }
+          if (existingMatches[s.id]) s.lyrics = existingMatches[s.id];
         });
       }
-      return [...songsWithLyrics, ...songsWithoutLyrics, ...newSongs];
+
+      if (songsWithoutVideo.length > 0 && videoFiles.length > 0) {
+        const existingVideoMatches = matchVideos(songsWithoutVideo, videoFiles);
+        songsWithoutVideo.forEach(s => {
+          if (existingVideoMatches[s.id]) s.videoUrl = existingVideoMatches[s.id];
+        });
+      }
+
+      // Re-merge
+      // Note: prevSongs might be mutated above (forEach), so constructing new array is important
+      // But we mutated objects inside array, so they update in place if we reuse references.
+      // Filter returns new array but references same objects.
+
+      return [...prevSongs, ...newSongs];
     });
 
     if (currentSong) {
       const currentSongMatch = matchLyrics([currentSong], lrcContents);
       if (currentSongMatch[currentSong.id]) {
         setCurrentSong(prev => prev ? { ...prev, lyrics: currentSongMatch[currentSong.id] } : null);
+      }
+
+      const currentSongVideoMatch = matchVideos([currentSong], videoFiles);
+      if (currentSongVideoMatch[currentSong.id]) {
+        setCurrentSong(prev => prev ? { ...prev, videoUrl: currentSongVideoMatch[currentSong.id] } : null);
       }
     }
   };
@@ -590,6 +646,7 @@ const App: React.FC = () => {
         ) : (
           // STANDARD MODE: Complex layered background
           <>
+            {/* Base Background (Cover Art or Wallpaper) */}
             <div
               className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${!isStandard ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
               style={{
@@ -597,13 +654,36 @@ const App: React.FC = () => {
                 filter: 'blur(30px) brightness(0.7)',
               }}
             />
-            <div
-              className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
-              style={{
-                backgroundImage: `url(${settings.wallpaper})`,
-                filter: 'brightness(1)',
-              }}
-            />
+
+            {/* Video Background Layer */}
+            {currentSong?.videoUrl && (
+              <div className={`absolute inset-0 overflow-hidden transition-all duration-1000 ease-elegant 
+                  ${isImmersive ? 'opacity-100 scale-100 blur-none z-10' : 'opacity-100 scale-105 blur-[30px] z-0'}
+               `}>
+                <video
+                  ref={videoRef}
+                  src={currentSong.videoUrl}
+                  className="w-full h-full object-cover"
+                  muted
+                  loop={audioState.isLooping}
+                  playsInline
+                />
+                {/* Overlay to darken video in standard mode so text is readable */}
+                {!isImmersive && <div className="absolute inset-0 bg-black/40" />}
+              </div>
+            )}
+
+            {/* Immersive Mode Validat/Clean Background (Only if no video) */}
+            {!currentSong?.videoUrl && (
+              <div
+                className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
+                style={{
+                  backgroundImage: `url(${settings.wallpaper})`,
+                  filter: 'brightness(1)',
+                }}
+              />
+            )}
+
             <div
               className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${(isCoverFlow || isShelf) && showPrismBg ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
               style={{
@@ -611,7 +691,7 @@ const App: React.FC = () => {
                 filter: 'brightness(0.3)',
               }}
             />
-            <div className="absolute inset-0 bg-black/10" />
+            <div className={`absolute inset-0 bg-black/10 transition-opacity duration-1000 ${isImmersive && currentSong?.videoUrl ? 'opacity-0' : 'opacity-100'}`} />
           </>
         )}
       </div>
@@ -627,6 +707,7 @@ const App: React.FC = () => {
             <div className="flex justify-center gap-8 text-white/50 text-sm font-medium uppercase tracking-widest">
               <span className="flex items-center gap-2"><Music2 size={16} /> Audio</span>
               <span className="flex items-center gap-2"><FileMusic size={16} /> Lyrics</span>
+              <span className="flex items-center gap-2"><Video size={16} /> Video</span>
             </div>
           </div>
         </div>

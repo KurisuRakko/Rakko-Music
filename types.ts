@@ -15,6 +15,7 @@ export interface Song {
   artist: string; // Legacy fallback or joined string
   url: string;
   lyrics?: string;
+  videoUrl?: string; // URL for the music video
   metadata?: ParsedMusicInfo; // Rich metadata
 }
 
