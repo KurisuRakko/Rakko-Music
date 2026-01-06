@@ -617,7 +617,7 @@ const App: React.FC = () => {
     >
       {/* Version Watermark */}
       <div className="fixed bottom-4 left-4 z-[100] text-[10px] font-mono text-white/20 pointer-events-none select-none">
-        Rakko Music v3.0.5
+        Rakko Music v3.1.0
       </div>
 
       {/* === LOADING SCREEN === */}
