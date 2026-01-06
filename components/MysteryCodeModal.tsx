@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, ArrowRight, Loader2, Sparkles, Download, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, ArrowRight, Loader2, Download, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Song } from '../types';
 import { parseMusicInfo } from '../utils';
 
@@ -17,12 +17,18 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
     const [progress, setProgress] = useState<number>(0);
     const [downloadSpeed, setDownloadSpeed] = useState<string>('');
     const inputRef = useRef<HTMLInputElement>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     useEffect(() => {
         if (isOpen && inputRef.current) {
             setTimeout(() => inputRef.current?.focus(), 100);
         }
         if (!isOpen) {
+            // Cancel any ongoing operations if modal is closed (though usually onClose handles this logic check)
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+                abortControllerRef.current = null;
+            }
             setCode('');
             setError(null);
             setIsLoading(false);
@@ -32,9 +38,17 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
         }
     }, [isOpen]);
 
-    const downloadFile = async (url: string, onProgress?: (loaded: number, total: number, speed: number) => void): Promise<Blob> => {
+    const handleClose = () => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        onClose();
+    };
+
+    const downloadFile = async (url: string, signal: AbortSignal, onProgress?: (loaded: number, total: number, speed: number) => void): Promise<Blob> => {
         const startTime = performance.now();
-        const response = await fetch(url);
+        const response = await fetch(url, { signal });
         if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
 
         const contentLength = response.headers.get('content-length');
@@ -46,20 +60,27 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
 
         const chunks: Uint8Array[] = [];
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            chunks.push(value);
-            loaded += value.length;
+                chunks.push(value);
+                loaded += value.length;
 
-            const currentTime = performance.now();
-            const elapsed = (currentTime - startTime) / 1000; // seconds
-            const speed = elapsed > 0 ? loaded / elapsed : 0; // bytes/sec
+                const currentTime = performance.now();
+                const elapsed = (currentTime - startTime) / 1000; // seconds
+                const speed = elapsed > 0 ? loaded / elapsed : 0; // bytes/sec
 
-            if (onProgress) {
-                onProgress(loaded, total, speed);
+                if (onProgress) {
+                    onProgress(loaded, total, speed);
+                }
             }
+        } catch (err: any) {
+            if (err.name === 'AbortError') {
+                throw new Error('Download cancelled');
+            }
+            throw err;
         }
 
         return new Blob(chunks as any, { type: response.headers.get('content-type') || 'application/octet-stream' });
@@ -71,7 +92,7 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
         return `${Math.round(bytesPerSec)} B/s`;
     };
 
-    const resolveMysteryCode = async (inputCode: string) => {
+    const resolveMysteryCode = async (inputCode: string, signal: AbortSignal) => {
         const baseUrl = inputCode.replace(/\/+$/, '');
         const codeName = baseUrl.split('/').pop() || 'Unknown';
         const info = parseMusicInfo(decodeURIComponent(codeName));
@@ -86,9 +107,10 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
 
         // Probe Logic (HEAD requests)
         for (const ext of audioExtensions) {
+            if (signal.aborted) throw new Error('Cancelled');
             const testUrl = `${baseUrl}/music.${ext}`;
             try {
-                const res = await fetch(testUrl, { method: 'HEAD' });
+                const res = await fetch(testUrl, { method: 'HEAD', signal });
                 if (res.ok) {
                     const contentType = res.headers.get('content-type');
                     if (contentType && (contentType.includes('text/html') || contentType.includes('application/json'))) {
@@ -98,7 +120,8 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
                     foundExt = ext;
                     break;
                 }
-            } catch (e) {
+            } catch (e: any) {
+                if (e.name === 'AbortError') throw e;
                 console.warn(`[MysteryCode] Failed to probe ${testUrl}`, e);
             }
         }
@@ -107,7 +130,7 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
 
         // 2. Download Audio
         setStatus(`Downloading Audio (${foundExt.toUpperCase()})...`);
-        const audioBlob = await downloadFile(audioUrl, (loaded, total, speed) => {
+        const audioBlob = await downloadFile(audioUrl, signal, (loaded, total, speed) => {
             if (total > 0) {
                 setProgress(Math.round((loaded / total) * 100));
             }
@@ -119,36 +142,39 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
         // 3. Probe & Download Video (Optional)
         let localVideoUrl: string | undefined = undefined;
         try {
+            if (signal.aborted) throw new Error('Cancelled');
             // Quick HEAD check
             const testVideo = `${baseUrl}/video.mp4`;
-            const headRes = await fetch(testVideo, { method: 'HEAD' });
+            const headRes = await fetch(testVideo, { method: 'HEAD', signal });
             if (headRes.ok) {
                 setStatus('Downloading Video...');
                 setProgress(0);
-                const videoBlob = await downloadFile(testVideo, (loaded, total, speed) => {
+                const videoBlob = await downloadFile(testVideo, signal, (loaded, total, speed) => {
                     if (total > 0) setProgress(Math.round((loaded / total) * 100));
                     setDownloadSpeed(formatSpeed(speed));
                 });
                 localVideoUrl = URL.createObjectURL(videoBlob);
             }
-        } catch (e) { /* ignore */ }
+        } catch (e: any) { if (e.name === 'AbortError') throw e; }
 
         // 4. Probe & Download Lyrics
         let lyrics: string | undefined = undefined;
         try {
+            if (signal.aborted) throw new Error('Cancelled');
             setStatus('Fetching Lyrics...');
             const testLrc = `${baseUrl}/lyrics.lrc`;
-            const res = await fetch(testLrc);
+            const res = await fetch(testLrc, { signal });
             if (res.ok) {
                 lyrics = await res.text();
             }
-        } catch (e) { /* ignore */ }
+        } catch (e: any) { if (e.name === 'AbortError') throw e; }
 
         // 5. Probe & Info
         try {
+            if (signal.aborted) throw new Error('Cancelled');
             setStatus('Reading Info...');
             const testInfo = `${baseUrl}/info.txt`;
-            const res = await fetch(testInfo);
+            const res = await fetch(testInfo, { signal });
             if (res.ok) {
                 const text = await res.text();
                 const lines = text.split('\n');
@@ -167,7 +193,7 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
                     }
                 });
             }
-        } catch (e) { /* ignore */ }
+        } catch (e: any) { if (e.name === 'AbortError') throw e; }
 
         return {
             id: Math.random().toString(36).substr(2, 9),
@@ -185,19 +211,34 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
         e.preventDefault();
         if (!code.trim()) return;
 
+        // Cancel previous if any
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        const controller = new AbortController();
+        abortControllerRef.current = controller;
+
         setIsLoading(true);
         setError(null);
         setProgress(0);
         setStatus('Initializing...');
 
         try {
-            const newSong = await resolveMysteryCode(code.trim());
+            const newSong = await resolveMysteryCode(code.trim(), controller.signal);
+            if (controller.signal.aborted) return;
+
             setStatus('Complete!');
             setTimeout(() => {
-                onSuccess(newSong);
-                onClose();
+                if (!controller.signal.aborted) {
+                    onSuccess(newSong);
+                    onClose();
+                }
             }, 500);
         } catch (err: any) {
+            if (err.message === 'Cancelled' || err.name === 'AbortError') {
+                return; // Silent fail on cancel
+            }
             setError(err.message || 'Failed to download content.');
             setIsLoading(false);
             setStatus('');
@@ -210,81 +251,73 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             {/* Backdrop */}
             <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-md transition-opacity duration-300"
-                onClick={!isLoading ? onClose : undefined}
+                className="absolute inset-0 bg-black/80 backdrop-blur-md transition-opacity duration-300"
+                onClick={handleClose}
             />
 
             {/* Modal */}
-            <div className="relative w-full max-w-md transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95">
-                <div className="relative overflow-hidden rounded-2xl bg-[#0f0f15]/90 backdrop-blur-2xl border border-white/10 shadow-[0_0_50px_-10px_rgba(0,0,0,0.7)] group">
-
-                    {/* Glass Shine */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/5 via-transparent to-transparent pointer-events-none" />
-
-                    {/* Gradient Header */}
-                    <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 animate-gradient-x" />
+            <div className="relative w-full max-w-[400px] transform transition-all duration-300 scale-100 animate-in fade-in zoom-in-95">
+                <div className="relative overflow-hidden rounded-xl bg-[#0f0f0f] border border-white/10 shadow-[0_20px_60px_-10px_rgba(0,0,0,0.8)]">
 
                     {/* Close button */}
-                    {!isLoading && (
-                        <button
-                            onClick={onClose}
-                            className="absolute top-4 right-4 p-2 text-white/40 hover:text-white hover:bg-white/10 rounded-full transition-colors z-10"
-                        >
-                            <X size={20} />
-                        </button>
-                    )}
+                    <button
+                        onClick={handleClose}
+                        className="absolute top-3 right-3 p-2 text-white/20 hover:text-white hover:bg-white/10 rounded-lg transition-colors z-20"
+                    >
+                        <X size={18} />
+                    </button>
 
-                    <div className="p-8 relative z-10">
-                        <div className="flex items-center gap-4 mb-8">
-                            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-white/5 text-purple-400 shadow-inner">
-                                {isLoading ? <Download size={24} className="animate-bounce" /> : <Sparkles size={24} />}
-                            </div>
-                            <div>
-                                <h2 className="text-xl font-bold text-white tracking-tight">Mystery Code</h2>
-                                <p className="text-sm text-white/40 font-medium">Download & Play</p>
-                            </div>
+                    <div className="p-6">
+                        <div className="flex flex-col gap-1 mb-6">
+                            <h2 className="text-lg font-semibold text-white tracking-tight flex items-center gap-2">
+                                <Download size={18} className="text-white/50" />
+                                Import Resource
+                            </h2>
+                            <p className="text-xs text-white/40">Enter a URL to download and play content.</p>
                         </div>
 
-                        <form onSubmit={handleSubmit} className="space-y-6">
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="relative">
                                 <input
                                     ref={inputRef}
                                     type="text"
                                     value={code}
                                     onChange={(e) => setCode(e.target.value)}
-                                    placeholder="Paste resource URL..."
-                                    className="relative w-full bg-black/20 border border-white/10 text-white placeholder-white/20 rounded-xl px-4 py-4 focus:outline-none focus:border-purple-500/50 focus:bg-black/40 transition-all font-mono text-sm shadow-inner"
+                                    placeholder="https://example.com/music..."
+                                    className="w-full bg-[#1a1a1a] border border-white/5 text-white placeholder-white/20 rounded-lg px-3 py-3 focus:outline-none focus:border-white/20 focus:bg-[#222] transition-all font-mono text-xs"
                                     disabled={isLoading}
                                     autoComplete="off"
                                 />
-                                {code && !isLoading && (
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-400 animate-in fade-in">
-                                        <CheckCircle2 size={16} />
+                                {code && !isLoading && !error && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 animate-in fade-in">
+                                        <CheckCircle2 size={14} />
                                     </div>
                                 )}
                             </div>
 
                             {/* Progress Section */}
                             {isLoading && (
-                                <div className="space-y-2 animate-in slide-in-from-top-2 fade-in">
-                                    <div className="flex justify-between text-xs font-mono text-white/60">
+                                <div className="space-y-3 py-2 animate-in slide-in-from-top-2 fade-in">
+                                    <div className="flex justify-between items-end text-[10px] font-mono uppercase tracking-wider text-white/40">
                                         <span>{status}</span>
                                         <span>{progress}%</span>
                                     </div>
-                                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+
+                                    <div className="h-0.5 w-full bg-white/5 overflow-hidden">
                                         <div
-                                            className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 transition-all duration-300 ease-out"
+                                            className="h-full bg-white transition-all duration-300 ease-out"
                                             style={{ width: `${progress}%` }}
                                         />
                                     </div>
-                                    <div className="flex justify-end text-[10px] font-mono text-white/30">
+
+                                    <div className="flex justify-end text-[10px] font-mono text-white/20">
                                         {downloadSpeed}
                                     </div>
                                 </div>
                             )}
 
                             {error && (
-                                <div className="flex items-center gap-2 text-red-400 text-xs px-2 py-2 bg-red-500/10 rounded-lg border border-red-500/20 animate-in slide-in-from-top-1">
+                                <div className="flex items-center gap-2 text-red-400 text-xs px-3 py-2 bg-red-500/5 border border-red-500/10 rounded-lg animate-in slide-in-from-top-1">
                                     <AlertCircle size={14} />
                                     {error}
                                 </div>
@@ -293,22 +326,19 @@ const MysteryCodeModal: React.FC<MysteryCodeModalProps> = ({ isOpen, onClose, on
                             <button
                                 type="submit"
                                 disabled={isLoading || !code.trim()}
-                                className="w-full relative group overflow-hidden rounded-xl bg-white text-black font-semibold py-4 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] shadow-lg hover:shadow-purple-500/20"
+                                className="w-full rounded-lg bg-white text-black font-semibold py-3 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] hover:bg-gray-100 flex items-center justify-center gap-2 text-xs uppercase tracking-wide"
                             >
-                                <div className="absolute inset-0 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 opacity-0 group-hover:opacity-10 transition-opacity" />
-                                <div className="flex items-center justify-center gap-2">
-                                    {isLoading ? (
-                                        <>
-                                            <Loader2 size={18} className="animate-spin" />
-                                            <span>Processing...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <span>Start Download</span>
-                                            <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
-                                        </>
-                                    )}
-                                </div>
+                                {isLoading ? (
+                                    <>
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span>Downloading...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>Start Download</span>
+                                        <ArrowRight size={14} className="opacity-50 group-hover:translate-x-1 transition-transform" />
+                                    </>
+                                )}
                             </button>
                         </form>
                     </div>
