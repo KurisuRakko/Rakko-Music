@@ -57,7 +57,7 @@ const AppBackground: React.FC<AppBackgroundProps> = ({
                     {/* Video Background Layer */}
                     {currentSong?.videoUrl && (
                         <div className={`absolute inset-0 overflow-hidden transition-all duration-1000 ease-elegant will-change-transform
-                  ${isImmersive ? 'opacity-100 scale-100 blur-none z-10' : 'opacity-100 scale-105 blur-[30px] z-0'}
+                  ${isImmersive ? 'opacity-100 scale-100 blur-none z-10' : 'opacity-100 scale-105 blur-[20px] z-0'}
                `}>
                             <video
                                 ref={videoRef}

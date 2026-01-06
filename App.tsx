@@ -88,6 +88,7 @@ const App: React.FC = () => {
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(new Audio());
   const videoRef = useRef<HTMLVideoElement>(null);
+  const isRecoveringFromBackground = useRef(false);
 
   // --- Effects ---
 
@@ -114,7 +115,7 @@ const App: React.FC = () => {
     setAudioState(prev => ({ ...prev, currentTime }));
 
     // Sync Video if it exists
-    if (videoRef.current && currentSong?.videoUrl) {
+    if (videoRef.current && currentSong?.videoUrl && !isRecoveringFromBackground.current) {
       const videoTime = videoRef.current.currentTime;
       const diff = videoTime - currentTime; // Positive: Video is ahead, Negative: Video is behind
 
@@ -213,6 +214,38 @@ const App: React.FC = () => {
       }
     }
   }, [audioState.isPlaying]);
+
+  // --- Visibility Change Handler to fix tab-switch stutter ---
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Tab hidden: Pause video to prevent decoding lag
+        if (videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+        }
+      } else {
+        // Tab visible: Hard sync and resume
+        if (videoRef.current && currentSong?.videoUrl && audioState.isPlaying) {
+          console.log("[App] Tab visible - Resyncing video");
+
+          // Set recovery flag to prevent smart-sync from interfering for 1s
+          isRecoveringFromBackground.current = true;
+
+          videoRef.current.currentTime = audioRef.current.currentTime;
+          videoRef.current.play().catch(console.error);
+
+          setTimeout(() => {
+            isRecoveringFromBackground.current = false;
+          }, 1000);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [audioState.isPlaying, currentSong]);
 
 
   // --- Song Change Effect ---
@@ -765,10 +798,10 @@ const App: React.FC = () => {
 
         {/* === LEFT PANEL: Player === */}
         <div className={`
-             transition-all duration-1000 ease-elegant z-20 flex flex-col justify-center
+             transition-all duration-1000 ease-elegant flex flex-col justify-center
              ${isImmersive
-            ? 'absolute bottom-12 left-12 w-[30vw] min-w-[300px] max-w-[400px] h-auto bg-black/40 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-2xl items-start group hover:bg-black/50'
-            : 'relative flex-1 md:w-1/2 items-center p-6 md:p-12 h-full'
+            ? 'absolute bottom-12 left-12 w-[30vw] min-w-[300px] max-w-[400px] h-auto bg-black/40 backdrop-blur-2xl rounded-3xl p-6 border border-white/10 shadow-2xl items-start group hover:bg-black/50 z-50'
+            : 'relative flex-1 md:w-1/2 items-center p-6 md:p-12 h-full z-20'
           }
         `}>
           {/* Logo Header (Normal Mode Only) */}
@@ -881,13 +914,13 @@ const App: React.FC = () => {
         <div className={`
            flex flex-col transition-all duration-500 ease-elegant
            ${isImmersive
-            ? 'fixed inset-0 z-30 w-full h-full pl-0 md:pl-[35%] bg-transparent pointer-events-none md:pointer-events-auto'
+            ? 'fixed inset-0 z-30 w-full h-full pl-0 md:pl-[35%] bg-transparent pointer-events-none'
             : 'fixed inset-0 z-50 md:static md:z-10 md:w-1/2 bg-black/95 md:bg-black/20 backdrop-blur-3xl md:backdrop-blur-none border-l border-white/5'
           }
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
           {/* Right Header (Desktop Actions) */}
-          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 opacity-100`}>
+          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 opacity-100 pointer-events-auto`}>
             <button onClick={() => {
               setIsMobileLibraryOpen(false);
             }} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
@@ -905,7 +938,7 @@ const App: React.FC = () => {
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 overflow-hidden relative">
+          <div className="flex-1 overflow-hidden relative pointer-events-auto">
             {/* Library View */}
             <div className={`absolute inset-0 transition-all duration-500 ease-elegant transform ${desktopViewMode === 'library' && !isImmersive ? 'opacity-100 translate-y-0 z-10' : 'opacity-0 translate-y-8 z-0 pointer-events-none'}`}>
               <Playlist
