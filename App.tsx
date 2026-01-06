@@ -116,8 +116,31 @@ const App: React.FC = () => {
     // Sync Video if it exists
     if (videoRef.current && currentSong?.videoUrl) {
       const videoTime = videoRef.current.currentTime;
-      if (Math.abs(videoTime - currentTime) > 0.3) {
+      const diff = videoTime - currentTime; // Positive: Video is ahead, Negative: Video is behind
+
+      // Sync Logic:
+      // 1. If drift is small (< 0.15s), do nothing (seamless).
+      // 2. If drift is moderate (0.15s - 1.0s), adjust playback rate to catch up or slow down.
+      // 3. If drift is large (> 1.0s), hard seek.
+
+      if (Math.abs(diff) < 0.15) {
+        // In Sync
+        if (videoRef.current.playbackRate !== 1) videoRef.current.playbackRate = 1;
+
+      } else if (Math.abs(diff) > 1.0) {
+        // Major Drift -> Hard Seek
+        console.warn(`[Sync] Major drift detected (${diff.toFixed(2)}s). Hard seeking.`);
         videoRef.current.currentTime = currentTime;
+        videoRef.current.playbackRate = 1;
+
+      } else {
+        // Moderate Drift -> Adjust Speed
+        // If video is ahead (diff > 0), slow down (0.95x).
+        // If video is behind (diff < 0), speed up (1.05x).
+        const targetRate = diff > 0 ? 0.95 : 1.05;
+        if (videoRef.current.playbackRate !== targetRate) {
+          videoRef.current.playbackRate = targetRate;
+        }
       }
     }
   };
