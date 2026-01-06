@@ -14,7 +14,6 @@ interface ModeControlsProps {
   onExitShelf: () => void;
   performanceMode?: boolean;
   isIdle?: boolean;
-  onOpenMysteryCode?: () => void;
 }
 
 const ModeControls: React.FC<ModeControlsProps> = React.memo(({
@@ -27,8 +26,7 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
   onEnterShelf,
   onExitShelf,
   performanceMode = false,
-  isIdle = false,
-  onOpenMysteryCode
+  isIdle = false
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -168,13 +166,6 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
             label="Remote"
           />
 
-          <ControlButton
-            isActive={false}
-            onClick={() => onOpenMysteryCode?.()}
-            icon={<ScanEye size={18} />}
-            label="Code"
-          />
-
           <Separator />
 
           <ControlButton
@@ -211,14 +202,9 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
         </button>
 
         {/* Shimmer Effect - HIDDEN IN PERFORMANCE MODE */}
-        {!performanceMode && (
-          <div className="absolute inset-0 rounded-full overflow-hidden pointer-events-none">
-            <div className="absolute top-0 bottom-0 left-0 w-10 bg-gradient-to-r from-transparent via-white/5 to-transparent skew-x-[-20deg] animate-[slide-in-right_1s_ease-out_forwards]" />
-          </div>
-        )}
+        {/* Removed potentially distracting animation */}
       </div>
-    </div>
-  );
+      );
 });
 
-export default ModeControls;
+      export default ModeControls;

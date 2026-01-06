@@ -394,6 +394,13 @@ const App: React.FC = () => {
       try {
         const res = await fetch(testUrl, { method: 'HEAD' });
         if (res.ok) {
+          const contentType = res.headers.get('content-type');
+          // Important: Some servers return 200 OK for missing files (serving index.html)
+          // We must ensure it's not HTML or JSON (unless it's actually audio)
+          if (contentType && (contentType.includes('text/html') || contentType.includes('application/json'))) {
+            console.warn(`[MysteryCode] ${testUrl} returned ${contentType}, skipping.`);
+            continue;
+          }
           audioUrl = testUrl;
           foundExt = ext;
           break;
@@ -830,7 +837,6 @@ const App: React.FC = () => {
           onExitShelf={exitShelfMode}
           performanceMode={settings.performanceMode}
           isIdle={isIdle}
-          onOpenMysteryCode={() => setIsMysteryCodeOpen(true)}
         />
       </div>
 
@@ -1002,7 +1008,9 @@ const App: React.FC = () => {
                 onRemoveSong={handleRemoveSong}
                 onUpdateLyrics={handleUpdateLyrics}
                 onReorder={handleReorder}
+
                 accentColor={settings.accentColor}
+                onOpenMysteryCode={() => setIsMysteryCodeOpen(true)}
               />
             </div>
 

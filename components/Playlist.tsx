@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Song } from '../types';
-import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical, FolderPlus } from 'lucide-react';
+import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical, FolderPlus, ScanEye } from 'lucide-react';
 
 interface PlaylistProps {
   songs: Song[];
@@ -13,6 +13,7 @@ interface PlaylistProps {
   onUpdateLyrics: (id: string, lyrics: string) => void;
   onReorder: (sourceIndex: number, destinationIndex: number) => void;
   accentColor: string;
+  onOpenMysteryCode?: () => void;
 }
 
 const Playlist: React.FC<PlaylistProps> = ({
@@ -24,8 +25,10 @@ const Playlist: React.FC<PlaylistProps> = ({
   onAddFolderAPI,
   onRemoveSong,
   onUpdateLyrics,
+
   onReorder,
-  accentColor
+  accentColor,
+  onOpenMysteryCode
 }) => {
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; songId: string } | null>(null);
   const lyricsInputRef = useRef<HTMLInputElement>(null);
@@ -153,6 +156,15 @@ const Playlist: React.FC<PlaylistProps> = ({
                 </div>
               </label>
             )}
+
+            {/* Mystery Code Button */}
+            <button
+              onClick={onOpenMysteryCode}
+              className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
+              title="Enter Mystery Code"
+            >
+              <ScanEye size={20} />
+            </button>
 
             {/* Add Files Button */}
             <label className="cursor-pointer group relative">
