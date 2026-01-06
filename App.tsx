@@ -13,6 +13,7 @@ import ModeControls from './components/ModeControls';
 import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic, Video } from 'lucide-react';
 import { usePresentationSync } from './hooks/usePresentationSync';
 import ControllerView from './components/ControllerView';
+import AppBackground from './components/AppBackground';
 
 type DesktopViewMode = 'library' | 'lyrics';
 
@@ -497,7 +498,7 @@ const App: React.FC = () => {
 
   // Reset idle mode when entering immersive/coverflow/shelf mode, or if not playing
   useEffect(() => {
-    if (isImmersive || isCoverFlow || isShelf || !audioState.isPlaying) {
+    if (isCoverFlow || isShelf || !audioState.isPlaying) {
       setIsIdle(false);
       if (idleTimeoutRef.current) {
         clearTimeout(idleTimeoutRef.current);
@@ -633,68 +634,17 @@ const App: React.FC = () => {
 
 
       {/* === BACKGROUND LAYER === */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
-        {settings.performanceMode ? (
-          // PERFORMANCE MODE: Single simple background layer
-          <div
-            className="absolute inset-0 bg-cover bg-center transition-all duration-300"
-            style={{
-              backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
-              filter: 'brightness(0.25)', // Just darken, no blur
-            }}
-          />
-        ) : (
-          // STANDARD MODE: Complex layered background
-          <>
-            {/* Base Background (Cover Art or Wallpaper) */}
-            <div
-              className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${!isStandard ? 'opacity-0 scale-105' : 'opacity-100 scale-100'}`}
-              style={{
-                backgroundImage: currentCover ? `url(${currentCover})` : `url(${settings.wallpaper})`,
-                filter: 'blur(30px) brightness(0.7)',
-              }}
-            />
-
-            {/* Video Background Layer */}
-            {currentSong?.videoUrl && (
-              <div className={`absolute inset-0 overflow-hidden transition-all duration-1000 ease-elegant 
-                  ${isImmersive ? 'opacity-100 scale-100 blur-none z-10' : 'opacity-100 scale-105 blur-[30px] z-0'}
-               `}>
-                <video
-                  ref={videoRef}
-                  src={currentSong.videoUrl}
-                  className="w-full h-full object-cover"
-                  muted
-                  loop={audioState.isLooping}
-                  playsInline
-                />
-                {/* Overlay to darken video in standard mode so text is readable */}
-                {!isImmersive && <div className="absolute inset-0 bg-black/40" />}
-              </div>
-            )}
-
-            {/* Immersive Mode Validat/Clean Background (Only if no video) */}
-            {!currentSong?.videoUrl && (
-              <div
-                className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-100 scale-100 blur-none' : 'opacity-0 scale-105 blur-md'}`}
-                style={{
-                  backgroundImage: `url(${settings.wallpaper})`,
-                  filter: 'brightness(1)',
-                }}
-              />
-            )}
-
-            <div
-              className={`absolute inset-0 bg-cover bg-center transition-all duration-1000 ease-elegant ${(isCoverFlow || isShelf) && showPrismBg ? 'opacity-100 scale-105 blur-lg' : 'opacity-0 scale-100 blur-none'}`}
-              style={{
-                backgroundImage: `url(${settings.wallpaper})`,
-                filter: 'brightness(0.3)',
-              }}
-            />
-            <div className={`absolute inset-0 bg-black/10 transition-opacity duration-1000 ${isImmersive && currentSong?.videoUrl ? 'opacity-0' : 'opacity-100'}`} />
-          </>
-        )}
-      </div>
+      <AppBackground
+        appMode={appMode}
+        currentCover={currentCover}
+        currentSong={currentSong}
+        isPlaying={audioState.isPlaying}
+        settings={settings}
+        videoRef={videoRef}
+        audioElement={audioRef.current}
+        showPrismBg={showPrismBg}
+        loopVideo={audioState.isLooping}
+      />
 
       {/* === DRAG OVERLAY === */}
       {isDragging && (
