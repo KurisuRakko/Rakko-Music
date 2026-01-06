@@ -51,8 +51,12 @@ export const parseLrc = (lrc: string): LrcLine[] => {
   return result.sort((a, b) => a.time - b.time);
 };
 
-export const extractAlbumArt = async (file: File): Promise<string | null> => {
+export const extractAlbumArt = async (file?: File): Promise<string | null> => {
   return new Promise((resolve) => {
+    if (!file) {
+      resolve(null);
+      return;
+    }
     if (!(window as any).jsmediatags) {
       console.warn("jsmediatags not loaded");
       resolve(null);

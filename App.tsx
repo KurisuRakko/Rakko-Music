@@ -14,6 +14,7 @@ import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, U
 import { usePresentationSync } from './hooks/usePresentationSync';
 import ControllerView from './components/ControllerView';
 import AppBackground from './components/AppBackground';
+import MysteryCodeModal from './components/MysteryCodeModal';
 
 type DesktopViewMode = 'library' | 'lyrics';
 
@@ -80,6 +81,9 @@ const App: React.FC = () => {
 
   // Drag and Drop State
   const [isDragging, setIsDragging] = useState(false);
+
+  // Mystery Code Modal
+  const [isMysteryCodeOpen, setIsMysteryCodeOpen] = useState(false);
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(new Audio());
@@ -368,6 +372,119 @@ const App: React.FC = () => {
       if (currentSongVideoMatch[currentSong.id]) {
         setCurrentSong(prev => prev ? { ...prev, videoUrl: currentSongVideoMatch[currentSong.id] } : null);
       }
+    }
+  };
+
+  const resolveMysteryCode = async (code: string) => {
+    // 1. Normalize Code (remove trailing slash)
+    const baseUrl = code.replace(/\/+$/, '');
+    const codeName = baseUrl.split('/').pop() || 'Unknown';
+    const info = parseMusicInfo(decodeURIComponent(codeName));
+
+    console.log(`[MysteryCode] Resolving: ${baseUrl}`);
+
+    // 2. Probe for Audio
+    // Priority: mp3, flac, wav, ogg, m4a
+    const audioExtensions = ['mp3', 'flac', 'wav', 'ogg', 'm4a'];
+    let audioUrl: string | null = null;
+    let foundExt = '';
+
+    for (const ext of audioExtensions) {
+      const testUrl = `${baseUrl}/music.${ext}`;
+      try {
+        const res = await fetch(testUrl, { method: 'HEAD' });
+        if (res.ok) {
+          audioUrl = testUrl;
+          foundExt = ext;
+          break;
+        }
+      } catch (e) {
+        console.warn(`[MysteryCode] Failed to probe ${testUrl}`, e);
+      }
+    }
+
+    if (!audioUrl) {
+      throw new Error("No audio found for this code.");
+    }
+
+    // 3. Probe for Video (video.mp4)
+    // Optional, don't fail if missing
+    let videoUrl: string | undefined = undefined;
+    try {
+      const testVideo = `${baseUrl}/video.mp4`;
+      const res = await fetch(testVideo, { method: 'HEAD' });
+      if (res.ok) videoUrl = testVideo;
+    } catch (e) { /* ignore */ }
+
+    // 4. Probe for Lyrics (lyrics.lrc)
+    let lyrics: string | undefined = undefined;
+    try {
+      const testLrc = `${baseUrl}/lyrics.lrc`;
+      const res = await fetch(testLrc);
+      if (res.ok) {
+        lyrics = await res.text();
+      }
+    } catch (e) { /* ignore */ }
+
+    // 5. Probe for Info (info.txt)
+    try {
+      const testInfo = `${baseUrl}/info.txt`;
+      const res = await fetch(testInfo);
+      if (res.ok) {
+        const text = await res.text();
+        const lines = text.split('\n');
+
+        // Parsing Logic
+        lines.forEach(line => {
+          const [key, ...values] = line.split(':');
+          if (key && values.length > 0) {
+            const cleanKey = key.trim().toLowerCase();
+            const cleanValue = values.join(':').trim(); // Rejoin in case value contains colons
+
+            if (cleanValue) {
+              if (cleanKey === 'title') info.title = cleanValue;
+              if (cleanKey === 'artist') info.artists = cleanValue.split(',').map(s => s.trim());
+              if (cleanKey === 'album') info.album = cleanValue;
+              if (cleanKey === 'version') info.version = cleanValue;
+              if (cleanKey === 'extra') info.extra = cleanValue;
+            }
+          }
+        });
+        console.log(`[MysteryCode] Parsed info.txt:`, info);
+      }
+    } catch (e) { /* ignore */ }
+
+    // 6. Construct Song Object
+    const newSong: Song = {
+      id: Math.random().toString(36).substr(2, 9),
+      // No file object for remote resources
+      name: info.title,
+      artist: info.artists.join(', ') || 'Unknown Artist',
+      url: audioUrl,
+      videoUrl,
+      lyrics,
+      metadata: info,
+      mysteryCode: code
+    };
+
+    return newSong;
+  };
+
+  const handleMysteryCodeSubmit = async (code: string) => {
+    try {
+      const newSong = await resolveMysteryCode(code);
+      if (newSong) {
+        setSongs(prev => [...prev, newSong]);
+        // Auto play if appropriate
+        if (!currentSong) {
+          setCurrentSong(newSong);
+          setAudioState(prev => ({ ...prev, isPlaying: true }));
+        }
+      }
+    } catch (err) {
+      console.error("Mystery Code failed:", err);
+      // Re-throw to let modal handle error UI
+      throw err;
     }
   };
 
@@ -713,8 +830,15 @@ const App: React.FC = () => {
           onExitShelf={exitShelfMode}
           performanceMode={settings.performanceMode}
           isIdle={isIdle}
+          onOpenMysteryCode={() => setIsMysteryCodeOpen(true)}
         />
       </div>
+
+      <MysteryCodeModal
+        isOpen={isMysteryCodeOpen}
+        onClose={() => setIsMysteryCodeOpen(false)}
+        onSubmit={handleMysteryCodeSubmit}
+      />
 
       {/* === MAIN LAYOUT CONTAINER === */}
       <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${(isCoverFlow || isShelf) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>

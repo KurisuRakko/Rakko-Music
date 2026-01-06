@@ -14,6 +14,7 @@ interface ModeControlsProps {
   onExitShelf: () => void;
   performanceMode?: boolean;
   isIdle?: boolean;
+  onOpenMysteryCode?: () => void;
 }
 
 const ModeControls: React.FC<ModeControlsProps> = React.memo(({
@@ -26,7 +27,8 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
   onEnterShelf,
   onExitShelf,
   performanceMode = false,
-  isIdle = false
+  isIdle = false,
+  onOpenMysteryCode
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -164,6 +166,13 @@ const ModeControls: React.FC<ModeControlsProps> = React.memo(({
             }}
             icon={<Smartphone size={18} />}
             label="Remote"
+          />
+
+          <ControlButton
+            isActive={false}
+            onClick={() => onOpenMysteryCode?.()}
+            icon={<ScanEye size={18} />}
+            label="Code"
           />
 
           <Separator />

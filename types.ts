@@ -10,13 +10,14 @@ export interface ParsedMusicInfo {
 
 export interface Song {
   id: string;
-  file: File;
+  file?: File;
   name: string;
   artist: string; // Legacy fallback or joined string
   url: string;
   lyrics?: string;
   videoUrl?: string; // URL for the music video
   metadata?: ParsedMusicInfo; // Rich metadata
+  mysteryCode?: string; // The source code/URL for remote songs
 }
 
 export interface AudioState {

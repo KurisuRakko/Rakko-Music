@@ -56,3 +56,42 @@ Rakko 是一款为极致审美而生的现代本地音乐播放器。它融合�
 
 *“让音乐回归视觉与听觉的双重纯粹。”*  
 Copyright © 2025 KurisuRakko. Licensed under Apache 2.0.
+
+---
+
+## Mystery Code Feature
+
+Rakko Music supports "Mystery Code" - a way to load remote resources via a URL.
+
+### Usage
+Click the "Eye" icon in the mode controls (right sidebar) and paste your code URL.
+
+### File Structure
+The server hosting the code should follow this structure:
+
+```
+[Base URL]/
+├── music.mp3 (or .flac, .wav, .ogg, .m4a)
+├── video.mp4 (Optional)
+├── lyrics.lrc (Optional)
+└── info.txt (Optional)
+```
+
+### info.txt Format
+The `info.txt` file is used to provide rich metadata for the song. It supports simple `Key: Value` pairs.
+
+**Supported Keys:**
+- `Title`: Song Title
+- `Artist`: Artist Name
+- `Album`: Album Name
+- `Version`: Song Version (e.g., Remix, Cover)
+- `Extra`: Extra info (e.g., Translation, Anime Name)
+
+**Example:**
+```txt
+Title: Beautifly Tomorrow
+Artist: ReoNa
+Album: Unknown
+Version: Original Mix
+Extra: Shangri-La Frontier OP 2
+```
