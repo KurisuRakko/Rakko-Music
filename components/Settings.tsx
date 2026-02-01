@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { X, Image as ImageIcon, Zap, Palette, Gauge } from 'lucide-react';
+import { X, Image as ImageIcon, Zap, Palette, Gauge, Trash2 } from 'lucide-react';
 import { AppSettings } from '../types';
 
 interface SettingsProps {
@@ -8,9 +8,10 @@ interface SettingsProps {
   onClose: () => void;
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
+  onClearAllSongs?: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdateSettings }) => {
+const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdateSettings, onClearAllSongs }) => {
   const [shouldRender, setShouldRender] = useState(false);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
 
@@ -178,6 +179,32 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
 
 
             </div>
+
+            {/* Data Management Section */}
+            {onClearAllSongs && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Data</h3>
+
+                <button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to delete ALL saved songs? This cannot be undone.')) {
+                      onClearAllSongs();
+                    }
+                  }}
+                  className="w-full flex items-center justify-between p-4 bg-red-500/10 hover:bg-red-500/20 rounded-2xl border border-red-500/20 transition-all hover:scale-[1.02] duration-300 active:scale-[0.98] group"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-red-500/20 text-red-400 group-hover:bg-red-500/30 transition-colors">
+                      <Trash2 size={20} />
+                    </div>
+                    <div className="text-left">
+                      <h3 className="text-sm font-semibold text-red-400">Clear All Songs</h3>
+                      <p className="text-xs text-red-400/60">Remove all songs from library & storage</p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
 
             {/* Customization Section */}
             <div className="space-y-3">

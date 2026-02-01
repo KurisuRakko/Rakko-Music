@@ -16,6 +16,7 @@ export interface Song {
   url: string;
   lyrics?: string;
   videoUrl?: string; // URL for the music video
+  coverUrl?: string; // URL for the cover image
   metadata?: ParsedMusicInfo; // Rich metadata
   mysteryCode?: string; // The source code/URL for remote songs
 }
@@ -39,3 +40,12 @@ export interface AppSettings {
 }
 
 export type AppMode = 'standard' | 'immersive' | 'coverflow' | 'shelf';
+
+export interface Playlist {
+  id: string;
+  name: string;
+  description?: string;
+  songIds: string[];
+  createdAt: number;
+  color?: string; // Optional accent color for the playlist
+}

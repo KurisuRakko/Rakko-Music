@@ -1,0 +1,11 @@
+# Mystery Link Configuration File
+# Format: YAML
+# List of songs/shortcuts
+
+songs:
+  - index: "1"
+    name: "My Sample Song"
+    link: "https://example.com/song"
+  - index: "002"
+    name: "Another Song"
+    link: "https://example.com/another"

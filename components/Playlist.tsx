@@ -1,20 +1,39 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Song } from '../types';
-import { Music, Plus, Play, Trash2, FileText, Mic2, Disc, UploadCloud, GripVertical, FolderPlus, Globe } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Song, Playlist as PlaylistType } from '../types';
+import {
+  ListMusic,
+  Plus,
+  Trash2,
+  MoreVertical,
+  X,
+  FileMusic,
+  FolderOpen,
+  Link2,
+  ArrowLeft,
+  Search,
+  Check,
+  Disc,
+  GripVertical,
+  Play,
+  Music2,
+  ListFilter
+} from 'lucide-react';
 
 interface PlaylistProps {
   songs: Song[];
   currentSong: Song | null;
   isPlaying: boolean;
-  onSelect: (song: Song) => void;
+  onSelect: (song: Song, contextSongs?: Song[]) => void;
   onAddFiles: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onAddFolderAPI?: () => void;
-  onRemoveSong: (id: string) => void;
-  onUpdateLyrics: (id: string, lyrics: string) => void;
+  onAddFolderAPI: () => void;
+  onRemoveSong: (songId: string) => void;
+  onUpdateLyrics: (songId: string, lyrics: string) => void;
   onReorder: (sourceIndex: number, destinationIndex: number) => void;
   accentColor: string;
   onOpenMysteryCode?: () => void;
 }
+
+const PLAYLISTS_STORAGE_KEY = 'rakko_playlists';
 
 const Playlist: React.FC<PlaylistProps> = ({
   songs,
@@ -24,324 +43,492 @@ const Playlist: React.FC<PlaylistProps> = ({
   onAddFiles,
   onAddFolderAPI,
   onRemoveSong,
-  onUpdateLyrics,
-
   onReorder,
   accentColor,
   onOpenMysteryCode
 }) => {
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; songId: string } | null>(null);
-  const lyricsInputRef = useRef<HTMLInputElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
-  const lastDragEndRef = useRef<number>(0);
+  // --- State ---
+  const [playlists, setPlaylists] = useState<PlaylistType[]>([]);
+  // Default to 'detail' (Song List).
+  const [currentView, setCurrentView] = useState<'detail' | 'overview'>('detail');
+  const [activePlaylistId, setActivePlaylistId] = useState<string | null>(null);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editingName, setEditingName] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [songMenuOpen, setSongMenuOpen] = useState<string | null>(null);
 
-  // Drag and Drop State
-  const [draggedItemIndex, setDraggedItemIndex] = useState<number | null>(null);
+  // Drag & Drop
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  // Close context menu on click outside
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const songMenuRef = useRef<HTMLDivElement>(null);
+
+  // --- Effects ---
   useEffect(() => {
-    const handleClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setContextMenu(null);
-      }
-    };
-    window.addEventListener('click', handleClick);
-    return () => window.removeEventListener('click', handleClick);
+    try {
+      const saved = localStorage.getItem(PLAYLISTS_STORAGE_KEY);
+      if (saved) setPlaylists(JSON.parse(saved));
+    } catch (e) {
+      console.error('[Playlist] Failed to load playlists:', e);
+    }
   }, []);
 
-  const handleContextMenu = (e: React.MouseEvent, songId: string) => {
-    e.preventDefault();
-    const x = Math.min(e.clientX, window.innerWidth - 180);
-    const y = Math.min(e.clientY, window.innerHeight - 120);
-    setContextMenu({ x, y, songId });
-  };
+  useEffect(() => {
+    localStorage.setItem(PLAYLISTS_STORAGE_KEY, JSON.stringify(playlists));
+  }, [playlists]);
 
-  const handleLyricsFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (contextMenu && e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const text = ev.target?.result as string;
-        onUpdateLyrics(contextMenu.songId, text);
-        setContextMenu(null);
-      };
-      reader.readAsText(file);
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (songMenuRef.current && !songMenuRef.current.contains(e.target as Node)) {
+        setSongMenuOpen(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // --- Logic ---
+  const activePlaylist = useMemo(() =>
+    playlists.find(p => p.id === activePlaylistId),
+    [playlists, activePlaylistId]);
+
+  const displayedSongs = useMemo(() => {
+    let list = activePlaylistId
+      ? songs.filter(s => activePlaylist?.songIds.includes(s.id))
+      : songs;
+
+    if (activePlaylistId && activePlaylist) {
+      list = list.sort((a, b) => {
+        return activePlaylist.songIds.indexOf(a.id) - activePlaylist.songIds.indexOf(b.id);
+      });
     }
-    if (e.target) e.target.value = '';
+
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      list = list.filter(s =>
+        s.name.toLowerCase().includes(q) ||
+        s.artist.toLowerCase().includes(q) ||
+        (s.metadata?.title || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [songs, activePlaylistId, activePlaylist, searchQuery]);
+
+  const handleCreatePlaylist = () => {
+    const newPlaylist: PlaylistType = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: `New Playlist`,
+      songIds: [],
+      createdAt: Date.now(),
+    };
+    setPlaylists([...playlists, newPlaylist]);
+    setActivePlaylistId(newPlaylist.id);
+    setCurrentView('detail'); // Go to the new playlist directly
+    setIsEditingTitle(true);
+    setEditingName(newPlaylist.name);
   };
 
-  const triggerLyricsImport = () => {
-    lyricsInputRef.current?.click();
-  };
-
-  const removeSelectedSong = () => {
-    if (contextMenu) {
-      onRemoveSong(contextMenu.songId);
-      setContextMenu(null);
+  const handleDeletePlaylist = () => {
+    if (confirm(`Are you sure you want to delete "${activePlaylist?.name}"?`)) {
+      setPlaylists(prev => prev.filter(p => p.id !== activePlaylistId));
+      setActivePlaylistId(null); // Back to All Songs
+      // Stay in detail view
     }
   };
 
-  // --- Drag and Drop Handlers ---
-
-  const handleDragStart = (e: React.DragEvent, index: number) => {
-    setDraggedItemIndex(index);
-    e.dataTransfer.effectAllowed = "move";
-    // Set data to ensure drag works in Firefox
-    e.dataTransfer.setData("text/plain", index.toString());
-  };
-
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault(); // Necessary to allow dropping
-    if (draggedItemIndex === null || draggedItemIndex === index) return;
-    setDragOverIndex(index);
-  };
-
-  const handleDragLeave = () => {
-    setDragOverIndex(null);
-  };
-
-  const handleDrop = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedItemIndex !== null && draggedItemIndex !== index) {
-      onReorder(draggedItemIndex, index);
+  const handleRenamePlaylist = () => {
+    if (activePlaylistId && editingName.trim()) {
+      setPlaylists(prev => prev.map(p =>
+        p.id === activePlaylistId ? { ...p, name: editingName.trim() } : p
+      ));
     }
-    setDraggedItemIndex(null);
-    setDragOverIndex(null);
-    lastDragEndRef.current = Date.now();
+    setIsEditingTitle(false);
+  };
+
+  const handleToggleSongInPlaylist = (songId: string, playlistId: string) => {
+    setPlaylists(prev => prev.map(p => {
+      if (p.id === playlistId) {
+        if (p.songIds.includes(songId)) {
+          return { ...p, songIds: p.songIds.filter(id => id !== songId) };
+        } else {
+          return { ...p, songIds: [...p.songIds, songId] };
+        }
+      }
+      return p;
+    }));
   };
 
   const handleDragEnd = () => {
-    setDraggedItemIndex(null);
-    setDragOverIndex(null);
-    lastDragEndRef.current = Date.now();
-  };
-
-  const handleSongClick = (song: Song) => {
-    if (Date.now() - lastDragEndRef.current < 200) {
-      console.log("[Playlist] Click ignored due to recent drag");
-      return;
+    if (draggedIndex !== null && dragOverIndex !== null && draggedIndex !== dragOverIndex) {
+      if (activePlaylistId) {
+        setPlaylists(prev => prev.map(p => {
+          if (p.id === activePlaylistId) {
+            const newIds = [...p.songIds];
+            const sourceId = displayedSongs[draggedIndex].id;
+            const targetId = displayedSongs[dragOverIndex].id;
+            const realSourceIdx = newIds.indexOf(sourceId);
+            const realTargetIdx = newIds.indexOf(targetId);
+            if (realSourceIdx !== -1 && realTargetIdx !== -1) {
+              newIds.splice(realSourceIdx, 1);
+              newIds.splice(realTargetIdx, 0, sourceId);
+            }
+            return { ...p, songIds: newIds };
+          }
+          return p;
+        }));
+      } else {
+        onReorder(draggedIndex, dragOverIndex);
+      }
     }
-    onSelect(song);
+    setDraggedIndex(null);
+    setDragOverIndex(null);
   };
 
-  return (
-    <div className="flex flex-col h-full w-full">
-      <div className="px-6 md:px-8 pb-4 animate-slide-up-fade">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight">Library</h2>
-          <div className="flex items-center gap-2">
-            {/* Add Folder Button */}
-            {onAddFolderAPI ? (
-              <button
-                onClick={onAddFolderAPI}
-                className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
-                title="Open Folder"
+  // --- Components ---
+
+  // 1. Overview Overlay (Playlist Selector)
+  const renderPlaylists = () => (
+    <div className={`absolute inset-0 flex flex-col bg-black/60 backdrop-blur-3xl transition-all duration-300 z-50 ${currentView === 'overview' ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4 pointer-events-none'
+      }`}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+        <button
+          onClick={() => setCurrentView('detail')}
+          className="flex items-center gap-2 text-white/70 hover:text-white transition-colors"
+        >
+          <ArrowLeft size={20} />
+          <span className="font-medium text-sm">Back</span>
+        </button>
+        <span className="font-semibold text-white">Playlists</span>
+        <button
+          onClick={handleCreatePlaylist}
+          className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+
+      {/* Grid */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+
+          {/* All Songs Tile */}
+          <div
+            onClick={() => {
+              setActivePlaylistId(null);
+              setCurrentView('detail');
+            }}
+            className={`group relative flex flex-col p-4 aspect-square rounded-2xl border transition-all cursor-pointer ${activePlaylistId === null ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'
+              }`}
+          >
+            <div className="p-3 bg-white/5 w-fit rounded-xl mb-auto backdrop-blur-md">
+              <Music2 size={24} className="text-white/80" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">All Songs</h3>
+              <p className="text-xs text-white/50 mt-1">{songs.length} tracks</p>
+            </div>
+          </div>
+
+          {/* User Playlists */}
+          {playlists.map((playlist) => (
+            <div
+              key={playlist.id}
+              onClick={() => {
+                setActivePlaylistId(playlist.id);
+                setCurrentView('detail');
+              }}
+              className={`group relative flex flex-col p-4 aspect-square rounded-2xl border transition-all cursor-pointer ${activePlaylistId === playlist.id ? 'bg-white/10 border-white/20 shadow-lg' : 'bg-white/5 border-white/5 hover:bg-white/10'
+                }`}
+            >
+              <div
+                className="p-3 w-fit rounded-xl mb-auto backdrop-blur-md"
+                style={{ backgroundColor: `${accentColor}20` }}
               >
-                <FolderPlus size={20} />
-              </button>
+                <ListMusic size={24} style={{ color: accentColor }} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white truncate">{playlist.name}</h3>
+                <p className="text-xs text-white/50 mt-1">{playlist.songIds.length} tracks</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // 2. Song List (Main View)
+  const renderSongList = () => (
+    <div className={`absolute inset-0 flex flex-col transition-transform duration-300 ${currentView === 'detail' ? 'scale-100 opacity-100' : 'scale-95 opacity-50'
+      }`}>
+      {/* Header Toolbar */}
+      <div className="flex flex-col z-20 pb-2">
+        <div className="flex items-center gap-3 px-4 pt-2 h-12">
+
+          {/* Playlist Switcher (Left) */}
+          <button
+            onClick={() => setCurrentView('overview')}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-white/80 hover:text-white transition-all border border-transparent hover:border-white/5"
+          >
+            <ListFilter size={16} />
+            <span className="text-sm font-semibold truncate max-w-[120px]">
+              {activePlaylistId ? activePlaylist?.name : 'Playlists'}
+            </span>
+          </button>
+
+          {/* Search Bar (Center) */}
+          <div className="flex-1 relative group">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 group-focus-within:text-white/70 transition-colors" />
+            <input
+              type="text"
+              placeholder={activePlaylistId ? `Search ${activePlaylist?.name}...` : "Search songs..."}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/5 hover:bg-white/10 focus:bg-white/10 border border-transparent focus:border-white/10 rounded-lg py-1.5 pl-9 pr-3 text-xs text-white placeholder:text-white/20 outline-none transition-all"
+            />
+          </div>
+
+          {/* Title Editing (Only when custom playlist is active) */}
+          {activePlaylistId && (
+            isEditingTitle ? (
+              <input
+                type="text"
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onBlur={handleRenamePlaylist}
+                onKeyDown={(e) => e.key === 'Enter' && handleRenamePlaylist()}
+                autoFocus
+                className="w-32 bg-white/10 text-sm px-2 py-1 rounded border border-white/20 text-white outline-none"
+              />
             ) : (
-              <label className="cursor-pointer group relative">
+              <button
+                onClick={() => {
+                  setEditingName(activePlaylist?.name || '');
+                  setIsEditingTitle(true);
+                }}
+                className="p-2 hover:bg-white/5 rounded-lg text-white/40 hover:text-white transition-colors"
+                title="Rename Playlist"
+              >
+                <span className="text-[10px] font-bold px-1 tracking-wider">RENAME</span>
+              </button>
+            )
+          )}
+
+          {/* Action Tools (Right) */}
+          <div className="flex items-center gap-1">
+            {!activePlaylistId && (
+              <>
                 <input
                   type="file"
-                  // @ts-ignore
-                  webkitdirectory=""
-                  directory=""
+                  ref={fileInputRef}
+                  onChange={onAddFiles}
+                  accept="audio/*"
                   multiple
                   className="hidden"
-                  onChange={onAddFiles}
                 />
-                <div className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 active:rotate-90 ease-spring" title="Add Folder">
-                  <FolderPlus size={20} />
-                </div>
-              </label>
+                <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors" title="Add Files">
+                  <Plus size={18} />
+                </button>
+                {onOpenMysteryCode && (
+                  <button onClick={onOpenMysteryCode} className="p-2 hover:bg-white/10 rounded-lg text-white/60 hover:text-white transition-colors">
+                    <Link2 size={18} />
+                  </button>
+                )}
+              </>
+            )}
+            {activePlaylistId && (
+              <button onClick={handleDeletePlaylist} className="p-2 hover:bg-red-500/10 text-white/40 hover:text-red-400 rounded-lg transition-colors">
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* List */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar px-2 pb-24">
+        {displayedSongs.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 opacity-60 select-none text-center px-4">
+            {/* Icon */}
+            <div className="p-4 bg-white/5 rounded-full mb-4">
+              <Disc size={40} className="text-white/40" strokeWidth={1} style={{ color: searchQuery ? undefined : accentColor }} />
+            </div>
+
+            <h3 className="text-sm font-medium text-white mb-1">
+              {searchQuery ? "No results found" : (activePlaylistId ? "Empty Playlist" : "No music yet")}
+            </h3>
+
+            <p className="text-[10px] text-white/40 max-w-[200px] leading-relaxed">
+              {searchQuery
+                ? `We couldn't find any songs matching "${searchQuery}"`
+                : (activePlaylistId
+                  ? "Add songs from your library by right-clicking them."
+                  : "Import your favorite tracks to get started.")}
+            </p>
+
+            {/* Action Button */}
+            {activePlaylistId && !searchQuery && (
+              <button
+                onClick={() => setActivePlaylistId(null)}
+                className="mt-6 px-5 py-2 bg-white/10 hover:bg-white/20 text-white text-xs rounded-full transition-colors font-medium border border-white/5"
+              >
+                Browse Library
+              </button>
             )}
 
-
-
-            {/* Add Files Button */}
-            <label className="cursor-pointer group relative">
-              <input
-                type="file"
-                accept="audio/*,.lrc,.txt"
-                multiple
-                className="hidden"
-                onChange={onAddFiles}
-              />
-              <div className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 active:rotate-90 ease-spring" title="Add Files">
-                <Plus size={20} />
-              </div>
-            </label>
-
-            {/* Mystery Code Button */}
-            <button
-              onClick={onOpenMysteryCode}
-              className="p-2.5 bg-white/10 rounded-full hover:bg-white text-white hover:text-black transition-all duration-300 shadow-lg hover:shadow-[0_0_20px_rgba(255,255,255,0.4)] hover:scale-110 active:scale-90 ease-spring"
-              title="Enter Mystery Code"
-            >
-              <Globe size={20} />
-            </button>
-          </div>
-        </div>
-        <p className="text-white/40 text-sm font-medium">{songs.length} Tracks</p>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-4 md:px-6 pb-4 space-y-1 custom-scrollbar">
-        {songs.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-white/20 space-y-4 border-2 border-dashed border-white/5 rounded-2xl m-2 animate-scale-fade-in group hover:border-white/20 transition-colors">
-            <div className="p-4 rounded-full bg-white/5 group-hover:scale-110 transition-transform duration-500 ease-spring">
-              <UploadCloud size={32} />
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-bold text-white/40 group-hover:text-white/60 transition-colors">No Songs Yet</p>
-              <p className="text-xs text-white/30 mt-1">Drag & Drop audio or lyrics here</p>
-            </div>
+            {!activePlaylistId && !searchQuery && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-6 px-6 py-2 bg-white text-black text-xs rounded-full transition-transform hover:scale-105 active:scale-95 font-bold shadow-lg shadow-white/10"
+              >
+                Import Files
+              </button>
+            )}
           </div>
         ) : (
-          songs.map((song, index) => {
-            const isActive = currentSong?.id === song.id;
-            const meta = song.metadata;
-            const isDragging = draggedItemIndex === index;
-            const isDragOver = dragOverIndex === index;
+          <div className="flex flex-col gap-0.5">
+            {displayedSongs.map((song, index) => {
+              const isCurrent = currentSong?.id === song.id;
+              const isDragging = draggedIndex === index;
+              const isDragOver = dragOverIndex === index;
+              const isNearBottom = index > displayedSongs.length - 4 && displayedSongs.length > 4;
 
-            return (
-              <div
-                key={song.id}
-                draggable
-                onDragStart={(e) => handleDragStart(e, index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, index)}
-                onDragEnd={handleDragEnd}
-                onClick={() => handleSongClick(song)}
-                onContextMenu={(e) => handleContextMenu(e, song.id)}
-                className={`
-                  group relative flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-all duration-300 ease-elegant select-none
-                  opacity-0 animate-slide-in-right hover:scale-[1.02] active:scale-[0.98]
-                  ${isActive ? 'bg-white/10 translate-x-1' : 'hover:bg-white/5'}
-                  ${isDragging ? 'opacity-50 scale-95 border-2 border-dashed border-white/20' : ''}
-                  ${isDragOver ? 'bg-white/10 scale-105 shadow-xl z-10' : ''}
-                `}
-                style={{
-                  animationDelay: `${index * 50}ms`,
-                  transform: isDragOver ? 'translateY(0) scale(1.02)' : undefined
-                }}
-              >
-                {/* Drag Handle (Visible on Hover) */}
-                <div className="absolute left-1 opacity-0 group-hover:opacity-40 hover:!opacity-100 cursor-grab active:cursor-grabbing transition-opacity">
-                  <GripVertical size={14} />
-                </div>
+              return (
+                <div
+                  key={song.id}
+                  draggable
+                  onDragStart={(e) => {
+                    setDraggedIndex(index);
+                    e.dataTransfer.effectAllowed = 'move';
+                  }}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setDragOverIndex(index);
+                  }}
+                  onDragEnd={handleDragEnd}
+                  onClick={() => onSelect(song, displayedSongs)}
+                  className={`
+                      group relative flex items-center gap-3 px-3 py-2 rounded-lg cursor-default
+                      transition-all duration-200 border border-transparent
+                      ${isCurrent
+                      ? 'bg-gradient-to-r from-white/10 to-transparent border-l-2'
+                      : 'hover:bg-white/5 border-l-2 border-l-transparent'
+                    }
+                      ${isDragging ? 'opacity-40' : 'opacity-100'}
+                      ${isDragOver && !isDragging ? 'border-t-white/30' : ''}
+                    `}
+                  style={{
+                    borderLeftColor: isCurrent ? accentColor : 'transparent'
+                  }}
+                >
+                  <div className="w-6 flex items-center justify-center text-xs font-mono font-medium text-white/20 group-hover:text-white/40">
+                    {isCurrent && isPlaying ? (
+                      <div className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ backgroundColor: accentColor }}></div>
+                    ) : (
+                      <span className="text-[10px]">{index + 1}</span>
+                    )}
+                  </div>
 
-                {/* Playing Indicator / Number */}
-                <div className="w-8 flex justify-center text-xs font-medium text-white/40 group-hover:text-white pl-2">
-                  {isActive && isPlaying ? (
-                    <div className="flex gap-0.5 items-end h-3">
-                      <div className="w-0.5 animate-[pulse_0.6s_ease-in-out_infinite] h-full" style={{ backgroundColor: accentColor }}></div>
-                      <div className="w-0.5 animate-[pulse_0.8s_ease-in-out_infinite] h-2/3" style={{ backgroundColor: accentColor }}></div>
-                      <div className="w-0.5 animate-[pulse_1.1s_ease-in-out_infinite] h-1/2" style={{ backgroundColor: accentColor }}></div>
+                  {/* Cover Art Thumbnail */}
+                  <div className="relative w-10 h-10 rounded-md overflow-hidden bg-white/5 flex-shrink-0 shadow-sm group-hover:shadow-md transition-shadow">
+                    {song.coverUrl ? (
+                      <img src={song.coverUrl} alt={song.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Music2 size={16} className="text-white/20" />
+                      </div>
+                    )}
+                    {/* Play Overlay on Hover */}
+                    <div className={`absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity ${isCurrent && isPlaying ? 'opacity-0' : ''}`}>
+                      <Play size={16} className="text-white fill-white" />
                     </div>
-                  ) : (
-                    <span className="group-hover:hidden transition-opacity">{index + 1}</span>
-                  )}
-                  <Play
-                    size={12}
-                    className={`hidden group-hover:block animate-in zoom-in duration-200 ${isActive ? '' : 'text-white'}`}
-                    fill="currentColor"
-                    style={{ color: isActive ? accentColor : undefined }}
-                  />
-                </div>
-
-                {/* Song Info */}
-                <div className="flex-1 overflow-hidden flex flex-col gap-0.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h4 className={`text-sm font-bold truncate transition-colors ${isActive ? 'text-white' : 'text-white/80 group-hover:text-white'}`}>
-                      {meta ? meta.title : song.name}
-                    </h4>
-
-                    {/* Extra Info Badge (e.g. Translation) */}
-                    {meta?.extra && (
-                      <span className="text-[10px] text-white/50 truncate max-w-[150px]">
-                        {meta.extra}
-                      </span>
-                    )}
-
-                    {/* Version Badge */}
-                    {meta?.version && (
-                      <span className="text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/60 font-semibold uppercase tracking-wider whitespace-nowrap">
-                        {meta.version}
-                      </span>
-                    )}
                   </div>
 
-                  <div className="flex items-center gap-1.5 truncate text-xs text-white/40 group-hover:text-white/60 transition-colors">
-                    <span>
-                      {meta ? meta.artists.join(', ') : song.artist}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
+                    <span className={`text-sm truncate ${isCurrent ? 'text-white font-bold' : 'text-white/90 font-medium'}`}>
+                      {song.metadata?.title || song.name}
                     </span>
-                    {meta?.features && meta.features.length > 0 && (
-                      <>
-                        <span className="opacity-50">•</span>
-                        <span className="italic text-white/30 group-hover:text-white/50">
-                          ft. {meta.features.join(', ')}
-                        </span>
-                      </>
-                    )}
-                    {meta?.album && (
-                      <>
-                        <span className="opacity-30">|</span>
-                        <span className="flex items-center gap-1 opacity-70">
-                          <Disc size={10} />
-                          {meta.album}
-                        </span>
-                      </>
+                    <span className={`text-[10px] truncate ${isCurrent ? 'text-white/60' : 'text-white/40'}`}>
+                      {song.metadata?.artists.join(', ') || song.artist}
+                    </span>
+                  </div>
+
+                  {/* Indicators */}
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {song.lyrics && <span className="text-[9px] px-1 bg-white/10 rounded text-white/50">LRC</span>}
+                    {song.videoUrl && <span className="text-[9px] px-1 bg-white/10 rounded text-white/50">MV</span>}
+                  </div>
+
+                  {/* Context Menu Button */}
+                  <div className="relative" ref={songMenuOpen === song.id ? songMenuRef : undefined}>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSongMenuOpen(songMenuOpen === song.id ? null : song.id);
+                      }}
+                      className={`p-1.5 rounded hover:bg-white/20 text-white/30 hover:text-white transition-opacity ${songMenuOpen === song.id ? 'opacity-100 bg-white/20' : 'opacity-0 group-hover:opacity-100'}`}
+                    >
+                      <MoreVertical size={14} />
+                    </button>
+
+                    {/* Acrylic Context Menu */}
+                    {songMenuOpen === song.id && (
+                      <div className={`
+                          absolute right-0 w-48 bg-[#1a1b26]/90 backdrop-blur-3xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden py-1
+                          ${isNearBottom ? 'bottom-full mb-1' : 'top-full mt-1'}
+                        `}>
+                        {playlists.length > 0 && (
+                          <>
+                            <div className="px-3 py-1.5 text-[9px] uppercase font-bold text-white/30 tracking-widest pl-4">Add to...</div>
+                            {playlists.map(pl => {
+                              const isInside = pl.songIds.includes(song.id);
+                              return (
+                                <button
+                                  key={pl.id}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleSongInPlaylist(song.id, pl.id);
+                                  }}
+                                  className="w-full text-left px-4 py-1.5 text-xs font-medium text-white/80 hover:bg-white/10 hover:text-white flex items-center justify-between group/item transition-colors"
+                                >
+                                  <span className="truncate">{pl.name}</span>
+                                  {isInside && <Check size={12} style={{ color: accentColor }} />}
+                                </button>
+                              )
+                            })}
+                            <div className="h-px bg-white/5 my-1 mx-2"></div>
+                          </>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRemoveSong(song.id);
+                            setSongMenuOpen(null);
+                          }}
+                          className="w-full text-left px-4 py-2 text-xs font-semibold text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </div>
-                </div>
 
-                {isActive && (
-                  <div
-                    className="w-1.5 h-1.5 rounded-full shadow-[0_0_8px_currentColor] animate-scale-fade-in"
-                    style={{ backgroundColor: accentColor, color: accentColor }}
-                  ></div>
-                )}
-              </div>
-            );
-          })
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
+    </div>
+  );
 
-      {/* Context Menu */}
-      {contextMenu && (
-        <div
-          ref={menuRef}
-          className="fixed z-50 min-w-[160px] bg-[#1e1e2e]/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)] py-2 overflow-hidden animate-in zoom-in-95 duration-200"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-        >
-          <button
-            onClick={triggerLyricsImport}
-            className="w-full text-left px-4 py-2.5 text-sm text-white/80 hover:bg-white/10 hover:text-white flex items-center gap-3 transition-colors active:bg-white/20"
-          >
-            <FileText size={16} />
-            Import Lyrics
-          </button>
-          <div className="h-px bg-white/5 my-1"></div>
-          <button
-            onClick={removeSelectedSong}
-            className="w-full text-left px-4 py-2.5 text-sm text-red-400 hover:bg-red-500/10 hover:text-red-300 flex items-center gap-3 transition-colors active:bg-red-500/20 group"
-          >
-            <Trash2 size={16} className="group-hover:animate-bounce-sm" />
-            Remove Song
-          </button>
-        </div>
-      )}
-
-      {/* Hidden File Input for Lyrics */}
-      <input
-        type="file"
-        ref={lyricsInputRef}
-        accept=".lrc,.txt"
-        className="hidden"
-        onChange={handleLyricsFileSelect}
-      />
+  return (
+    <div className="relative w-full h-full overflow-hidden font-sans select-none">
+      {renderSongList()}
+      {renderPlaylists()}
     </div>
   );
 };

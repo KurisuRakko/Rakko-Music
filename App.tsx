@@ -3,6 +3,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, AudioState, AppSettings, AppMode } from './types';
 import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR, DEFAULT_SETTINGS } from './constants';
 import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics, matchVideos, VideoFile } from './utils';
+import { saveSong, removeSong as removeSongFromStorage, loadAllSongs, clearAllSongs } from './utils/songStorage';
 import Controls from './components/Controls';
 import Playlist from './components/Playlist';
 import Settings from './components/Settings';
@@ -23,6 +24,8 @@ const App: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [currentSong, setCurrentSong] = useState<Song | null>(null);
   const [currentCover, setCurrentCover] = useState<string | null>(null);
+  // The queue of songs currently contextually relevant (e.g. current playlist)
+  const [playbackQueue, setPlaybackQueue] = useState<Song[]>([]);
 
   const [audioState, setAudioState] = useState<AudioState>({
     isPlaying: false,
@@ -92,12 +95,27 @@ const App: React.FC = () => {
 
   // --- Effects ---
 
-  // Simulate App Loading
+  // Simulate App Loading + Load persisted songs
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
-    return () => clearTimeout(timer);
+    const initApp = async () => {
+      try {
+        const persistedSongs = await loadAllSongs();
+        if (persistedSongs.length > 0) {
+          setSongs(persistedSongs);
+          setPlaybackQueue(persistedSongs); // Initialize queue with all songs
+          console.log('[App] Loaded', persistedSongs.length, 'songs from storage');
+        }
+      } catch (e) {
+        console.error('[App] Failed to load songs from storage:', e);
+      }
+
+      // Delay for loading screen
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 1500);
+    };
+
+    initApp();
   }, []);
 
   // Listen for Fullscreen changes
@@ -155,19 +173,24 @@ const App: React.FC = () => {
   };
 
   const playNext = useCallback(() => {
-    if (songs.length === 0) return;
+    // Use playbackQueue if available, otherwise fallback to all songs
+    const queue = playbackQueue.length > 0 ? playbackQueue : songs;
+    if (queue.length === 0) return;
 
     let nextIndex;
-    const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
+    const currentIndex = queue.findIndex(s => s.id === currentSong?.id);
+
+    // If current song is not in the queue (e.g. queue changed), start from 0
+    const validCurrentIndex = currentIndex !== -1 ? currentIndex : 0;
 
     if (audioState.isShuffle) {
-      nextIndex = Math.floor(Math.random() * songs.length);
+      nextIndex = Math.floor(Math.random() * queue.length);
     } else {
-      nextIndex = (currentIndex + 1) % songs.length;
+      nextIndex = (validCurrentIndex + 1) % queue.length;
     }
 
-    setCurrentSong(songs[nextIndex]);
-  }, [songs, currentSong, audioState.isShuffle]);
+    setCurrentSong(queue[nextIndex]);
+  }, [songs, playbackQueue, currentSong, audioState.isShuffle]);
 
   const handleEnded = useCallback(() => {
     if (audioState.isLooping) {
@@ -214,6 +237,7 @@ const App: React.FC = () => {
       }
     }
   }, [audioState.isPlaying]);
+
 
   // --- Visibility Change Handler to fix tab-switch stutter ---
   useEffect(() => {
@@ -264,9 +288,13 @@ const App: React.FC = () => {
       });
 
       // Extract Album Art
-      extractAlbumArt(currentSong.file).then(cover => {
-        setCurrentCover(cover);
-      });
+      if (currentSong.coverUrl) {
+        setCurrentCover(currentSong.coverUrl);
+      } else {
+        extractAlbumArt(currentSong.file).then(cover => {
+          setCurrentCover(cover);
+        });
+      }
 
     } else {
       console.log("[App] currentSong is null, pausing");
@@ -294,11 +322,16 @@ const App: React.FC = () => {
 
   const playPrev = useCallback(() => {
     console.log("[App] playPrev called");
-    if (songs.length === 0) return;
-    const currentIndex = songs.findIndex(s => s.id === currentSong?.id);
-    const prevIndex = (currentIndex - 1 + songs.length) % songs.length;
-    setCurrentSong(songs[prevIndex]);
-  }, [songs, currentSong]);
+    const queue = playbackQueue.length > 0 ? playbackQueue : songs;
+    if (queue.length === 0) return;
+
+    const currentIndex = queue.findIndex(s => s.id === currentSong?.id);
+    // If not found, default to 0
+    const validCurrentIndex = currentIndex !== -1 ? currentIndex : 0;
+
+    const prevIndex = (validCurrentIndex - 1 + queue.length) % queue.length;
+    setCurrentSong(queue[prevIndex]);
+  }, [songs, playbackQueue, currentSong]);
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const time = Number(e.target.value);
@@ -307,18 +340,18 @@ const App: React.FC = () => {
     setAudioState(prev => ({ ...prev, currentTime: time }));
   };
 
-  const handleSeekToTime = (time: number) => {
+  const handleSeekToTime = useCallback((time: number) => {
     console.log("[App] Seek to:", time);
     if (audioRef.current) {
       audioRef.current.currentTime = time;
       if (videoRef.current) videoRef.current.currentTime = time;
       setAudioState(prev => ({ ...prev, currentTime: time }));
-      if (!audioState.isPlaying) {
+      if (audioRef.current.paused) {
         audioRef.current.play().catch(console.error);
         setAudioState(prev => ({ ...prev, isPlaying: true }));
       }
     }
-  };
+  }, []);
 
   const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const vol = Number(e.target.value);
@@ -336,6 +369,31 @@ const App: React.FC = () => {
       document.exitFullscreen();
     }
   }, []);
+
+  // --- Media Session API ---
+  useEffect(() => {
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: currentSong?.metadata?.title || currentSong?.name || "Rakko Music",
+        artist: currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "Unknown Artist",
+        album: currentSong?.metadata?.album || "Rakko Music",
+        artwork: currentCover ? [{ src: currentCover, sizes: '512x512', type: 'image/png' }] : []
+      });
+
+      navigator.mediaSession.playbackState = audioState.isPlaying ? "playing" : "paused";
+
+      navigator.mediaSession.setActionHandler('play', () => togglePlayPause());
+      navigator.mediaSession.setActionHandler('pause', () => togglePlayPause());
+      navigator.mediaSession.setActionHandler('previoustrack', () => playPrev());
+      navigator.mediaSession.setActionHandler('nexttrack', () => playNext());
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime !== undefined && details.seekTime !== null) {
+          handleSeekToTime(details.seekTime);
+        }
+      });
+    }
+  }, [currentSong, currentCover, audioState.isPlaying, togglePlayPause, playNext, playPrev, handleSeekToTime]);
+
 
   const processFiles = async (files: File[]) => {
     if (files.length === 0) return;
@@ -385,15 +443,10 @@ const App: React.FC = () => {
       }
     });
 
-    // 5. Update State
+    // 5. Update State and persist new songs
     setSongs(prevSongs => {
-      // Also checking existing songs against new matches?
-      // For now, let's keep it simple and only match within the batch + what's already there if we wanted to support "add lrc later".
-      // But matching video to existing songs is also good.
       const songsWithoutLyrics = prevSongs.filter(s => !s.lyrics);
       const songsWithoutVideo = prevSongs.filter(s => !s.videoUrl);
-
-      const songsWithLyrics = prevSongs.filter(s => !!s.lyrics);
 
       // Try to match existing songs with new resources
       if (songsWithoutLyrics.length > 0 && lrcContents.length > 0) {
@@ -410,10 +463,10 @@ const App: React.FC = () => {
         });
       }
 
-      // Re-merge
-      // Note: prevSongs might be mutated above (forEach), so constructing new array is important
-      // But we mutated objects inside array, so they update in place if we reuse references.
-      // Filter returns new array but references same objects.
+      // Persist new songs to IndexedDB
+      newSongs.forEach(song => {
+        saveSong(song).catch(e => console.error('[App] Failed to save song:', e));
+      });
 
       return [...prevSongs, ...newSongs];
     });
@@ -504,6 +557,12 @@ const App: React.FC = () => {
   };
 
   const handleRemoveSong = (songId: string) => {
+    // Remove from IndexedDB
+    removeSongFromStorage(songId).catch(e => console.error('[App] Failed to remove song from storage:', e));
+
+    // Also remove from playback queue if present
+    setPlaybackQueue(prev => prev.filter(s => s.id !== songId));
+
     setSongs(prev => {
       const newSongs = prev.filter(s => s.id !== songId);
       if (currentSong?.id === songId) {
@@ -783,14 +842,22 @@ const App: React.FC = () => {
       <MysteryCodeModal
         isOpen={isMysteryCodeOpen}
         onClose={() => setIsMysteryCodeOpen(false)}
-        onSuccess={(newSong) => {
-          setSongs(prev => [...prev, newSong]);
-          // Auto play if appropriate
-          if (!currentSong) {
-            setCurrentSong(newSong);
+        onSuccess={(newSongs) => {
+          const songsToAdd = Array.isArray(newSongs) ? newSongs : [newSongs];
+          setSongs(prev => [...prev, ...songsToAdd]);
+
+          // Persist to IndexedDB
+          songsToAdd.forEach(song => {
+            saveSong(song).catch(e => console.error('[App] Failed to save song:', e));
+          });
+
+          // Auto play if appropriate (only if nothing is playing)
+          if (!currentSong && songsToAdd.length > 0) {
+            setCurrentSong(songsToAdd[0]);
             setAudioState(prev => ({ ...prev, isPlaying: true }));
           }
         }}
+        accentColor={settings.accentColor}
       />
 
       {/* === MAIN LAYOUT CONTAINER === */}
@@ -945,7 +1012,15 @@ const App: React.FC = () => {
                 songs={songs}
                 currentSong={currentSong}
                 isPlaying={audioState.isPlaying}
-                onSelect={(song) => {
+                onSelect={(song, contextSongs) => {
+                  if (contextSongs) {
+                    setPlaybackQueue(contextSongs);
+                  } else {
+                    // If no context provided, assume we want to play from 'songs' (All Songs)
+                    // But we don't necessarily want to query 'songs' here as it might be stable closure.
+                    // Better to rely on the caller to pass 'songs' if they mean All Songs.
+                    // For safety, if no context, we don't force-change queue unless it's empty.
+                  }
                   setCurrentSong(song);
                   setAudioState(p => ({ ...p, isPlaying: true }));
                   if (window.innerWidth < 768) setIsMobileLibraryOpen(false);
@@ -1023,6 +1098,14 @@ const App: React.FC = () => {
           onClose={() => setShowSettings(false)}
           settings={settings}
           onUpdateSettings={setSettings}
+          onClearAllSongs={() => {
+            clearAllSongs().then(() => {
+              setSongs([]);
+              setCurrentSong(null);
+              setAudioState(prev => ({ ...prev, isPlaying: false }));
+              console.log('[App] Cleared all songs');
+            }).catch(e => console.error('[App] Failed to clear songs:', e));
+          }}
         />
 
       </div>

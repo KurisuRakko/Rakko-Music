@@ -42,9 +42,22 @@ const ShelfItem = ({
 
   useEffect(() => {
     let mounted = true;
-    extractAlbumArt(song.file).then(art => {
-      if (mounted) setCover(art);
-    });
+
+    const resolveCover = async () => {
+      // 1. Check for `song.coverUrl`
+      if (song.coverUrl) {
+        setCover(song.coverUrl);
+        return;
+      }
+
+      // 2. Check for extracted art
+      if (song.file) {
+        const art = await extractAlbumArt(song.file);
+        if (mounted && art) setCover(art);
+      }
+    };
+
+    resolveCover();
     return () => { mounted = false; };
   }, [song]);
 

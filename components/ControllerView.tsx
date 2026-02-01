@@ -12,6 +12,10 @@ interface ControllerViewProps {
     songs: Song[];
     sendPing: () => void;
     lastPongTime: number;
+    sendCommand: (cmd: SyncCommand, payload?: any) => void;
+    accentColor: string;
+    lastSyncTime: number;
+    settings: any;
 }
 
 const ControllerView: React.FC<ControllerViewProps> = ({
