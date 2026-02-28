@@ -13,21 +13,21 @@ interface LyricsViewProps {
   performanceMode?: boolean;
 }
 
-const LyricsView: React.FC<LyricsViewProps> = ({ 
-  lyrics, 
-  currentTime, 
-  onImportLyrics, 
-  accentColor, 
+const LyricsView: React.FC<LyricsViewProps> = ({
+  lyrics,
+  currentTime,
+  onImportLyrics,
+  accentColor,
   onSeek,
   variant = 'default',
   performanceMode = false
 }) => {
   const parsedLyrics = useMemo(() => lyrics ? parseLrc(lyrics) : [], [lyrics]);
-  
+
   // State to track if the user is manually interacting (scrolling/touching)
   const [isUserScrolling, setIsUserScrolling] = useState(false);
   const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  
+
   const activeIndex = useMemo(() => {
     if (!parsedLyrics.length) return -1;
     let index = -1;
@@ -43,7 +43,7 @@ const LyricsView: React.FC<LyricsViewProps> = ({
 
   const containerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLDivElement | null)[]>([]);
-  
+
   // Physics State for Spring Animation
   const physicsRef = useRef({
     scrollTop: 0,    // Current actual scroll position
@@ -59,17 +59,17 @@ const LyricsView: React.FC<LyricsViewProps> = ({
   }, [parsedLyrics]);
 
   const lineProgress = useMemo(() => {
-     if (activeIndex === -1 || !parsedLyrics.length) return 0;
-     const currentLine = parsedLyrics[activeIndex];
-     const nextLine = parsedLyrics[activeIndex + 1];
-     
-     const startTime = currentLine.time;
-     const endTime = nextLine ? nextLine.time : startTime + 5; 
-     const duration = endTime - startTime;
-     
-     if (duration <= 0) return 0;
-     const progress = (currentTime - startTime) / duration;
-     return Math.max(0, Math.min(1, progress));
+    if (activeIndex === -1 || !parsedLyrics.length) return 0;
+    const currentLine = parsedLyrics[activeIndex];
+    const nextLine = parsedLyrics[activeIndex + 1];
+
+    const startTime = currentLine.time;
+    const endTime = nextLine ? nextLine.time : startTime + 5;
+    const duration = endTime - startTime;
+
+    if (duration <= 0) return 0;
+    const progress = (currentTime - startTime) / duration;
+    return Math.max(0, Math.min(1, progress));
   }, [currentTime, activeIndex, parsedLyrics]);
 
   // --- User Interaction Handler ---
@@ -103,87 +103,87 @@ const LyricsView: React.FC<LyricsViewProps> = ({
     }
 
     const calculateTarget = () => {
-        const container = containerRef.current;
-        const activeLine = lineRefs.current[activeIndex];
-        if (!container || !activeLine) return null;
+      const container = containerRef.current;
+      const activeLine = lineRefs.current[activeIndex];
+      if (!container || !activeLine) return null;
 
-        const containerHeight = container.clientHeight;
-        const lineHeight = activeLine.clientHeight;
-        const lineOffsetTop = activeLine.offsetTop;
-        
-        // Focus Ratio: 0.85 for immersive (bottom aligned), 0.35 for default (top-center)
-        const focusRatio = variant === 'immersive' ? 0.85 : 0.35;
-        
-        // Calculate target scroll position
-        let target = lineOffsetTop - (containerHeight * focusRatio) + (lineHeight / 2);
-        
-        // Clamp target to valid scroll range
-        const maxScroll = container.scrollHeight - containerHeight;
-        target = Math.max(0, Math.min(target, maxScroll));
-        
-        return target;
+      const containerHeight = container.clientHeight;
+      const lineHeight = activeLine.clientHeight;
+      const lineOffsetTop = activeLine.offsetTop;
+
+      // Focus Ratio: 0.85 for immersive (bottom aligned), 0.35 for default (top-center)
+      const focusRatio = variant === 'immersive' ? 0.85 : 0.35;
+
+      // Calculate target scroll position
+      let target = lineOffsetTop - (containerHeight * focusRatio) + (lineHeight / 2);
+
+      // Clamp target to valid scroll range
+      const maxScroll = container.scrollHeight - containerHeight;
+      target = Math.max(0, Math.min(target, maxScroll));
+
+      return target;
     };
 
     const startSpringAnimation = () => {
-        const state = physicsRef.current;
-        const container = containerRef.current;
-        
-        const newTarget = calculateTarget();
-        if (newTarget === null) return;
+      const state = physicsRef.current;
+      const container = containerRef.current;
 
-        // Update target immediately. The physics loop will handle the rest.
-        state.targetTop = newTarget;
+      const newTarget = calculateTarget();
+      if (newTarget === null) return;
 
-        // If loop is already running, we don't need to restart it. 
-        // Just updating targetTop is enough for the "interruptible" effect.
-        if (state.isAnimating) return;
+      // Update target immediately. The physics loop will handle the rest.
+      state.targetTop = newTarget;
 
-        state.isAnimating = true;
-        state.lastTime = performance.now();
-        // Sync internal state with DOM just in case
-        if (container) state.scrollTop = container.scrollTop;
+      // If loop is already running, we don't need to restart it. 
+      // Just updating targetTop is enough for the "interruptible" effect.
+      if (state.isAnimating) return;
 
-        const loop = (now: number) => {
-             // If user starts scrolling during animation, kill the physics loop
-             if (isUserScrolling) {
-                state.isAnimating = false;
-                rafRef.current = null;
-                return;
-             }
+      state.isAnimating = true;
+      state.lastTime = performance.now();
+      // Sync internal state with DOM just in case
+      if (container) state.scrollTop = container.scrollTop;
 
-             const dt = Math.min((now - state.lastTime) / 1000, 0.1); // Cap dt to prevent huge jumps
-             state.lastTime = now;
+      const loop = (now: number) => {
+        // If user starts scrolling during animation, kill the physics loop
+        if (isUserScrolling) {
+          state.isAnimating = false;
+          rafRef.current = null;
+          return;
+        }
 
-             // Spring Constants
-             // Tension: How fast it pulls towards target (higher = snappier)
-             // Friction: How much it resists movement (higher = less oscillation)
-             const tension = 180; 
-             const friction = 26; 
+        const dt = Math.min((now - state.lastTime) / 1000, 0.1); // Cap dt to prevent huge jumps
+        state.lastTime = now;
 
-             const displacement = state.targetTop - state.scrollTop;
-             const acceleration = tension * displacement - friction * state.velocity;
+        // Spring Constants
+        // Tension: How fast it pulls towards target (higher = snappier)
+        // Friction: How much it resists movement (higher = less oscillation)
+        const tension = 180;
+        const friction = 26;
 
-             state.velocity += acceleration * dt;
-             state.scrollTop += state.velocity * dt;
+        const displacement = state.targetTop - state.scrollTop;
+        const acceleration = tension * displacement - friction * state.velocity;
 
-             if (container) {
-                 container.scrollTop = state.scrollTop;
-             }
+        state.velocity += acceleration * dt;
+        state.scrollTop += state.velocity * dt;
 
-             // Stop condition: Near target AND slow velocity
-             if (Math.abs(displacement) < 0.5 && Math.abs(state.velocity) < 1) {
-                 state.isAnimating = false;
-                 // Snap to exact spot to stop micro-jitters
-                 if (container) container.scrollTop = state.targetTop;
-                 state.scrollTop = state.targetTop;
-                 state.velocity = 0;
-                 rafRef.current = null;
-             } else {
-                 rafRef.current = requestAnimationFrame(loop);
-             }
-        };
+        if (container) {
+          container.scrollTop = state.scrollTop;
+        }
 
-        rafRef.current = requestAnimationFrame(loop);
+        // Stop condition: Near target AND slow velocity
+        if (Math.abs(displacement) < 0.5 && Math.abs(state.velocity) < 1) {
+          state.isAnimating = false;
+          // Snap to exact spot to stop micro-jitters
+          if (container) container.scrollTop = state.targetTop;
+          state.scrollTop = state.targetTop;
+          state.velocity = 0;
+          rafRef.current = null;
+        } else {
+          rafRef.current = requestAnimationFrame(loop);
+        }
+      };
+
+      rafRef.current = requestAnimationFrame(loop);
     };
 
     startSpringAnimation();
@@ -193,26 +193,26 @@ const LyricsView: React.FC<LyricsViewProps> = ({
     const transitionTimeout = setTimeout(startSpringAnimation, 550);
 
     return () => {
-       clearTimeout(transitionTimeout);
-       if (rafRef.current) {
-           // Cleanup handled by state check
-       }
+      clearTimeout(transitionTimeout);
+      if (rafRef.current) {
+        // Cleanup handled by state check
+      }
     };
   }, [activeIndex, variant, performanceMode, isUserScrolling]);
 
   // Stop animation loop if component unmounts
   useEffect(() => {
-      return () => {
-          if (rafRef.current) cancelAnimationFrame(rafRef.current);
-          if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
-      };
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (interactionTimeoutRef.current) clearTimeout(interactionTimeoutRef.current);
+    };
   }, []);
 
 
   // --- Dynamic Typography Classes based on Variant ---
   const getTextSize = (isActive: boolean) => {
     if (variant === 'immersive') {
-        return isActive ? 'text-3xl md:text-5xl' : 'text-xl md:text-2xl';
+      return isActive ? 'text-3xl md:text-5xl' : 'text-xl md:text-2xl';
     }
     return isActive ? 'text-3xl md:text-5xl' : 'text-2xl md:text-4xl';
   };
@@ -223,64 +223,64 @@ const LyricsView: React.FC<LyricsViewProps> = ({
     }
     return 'space-y-12 py-[40vh]';
   };
-  
+
   const getLineStyle = (index: number, activeIdx: number, isAct: boolean) => {
-      // 1. User Interaction Overrides: Clear visibility
-      if (isUserScrolling) {
-          return {
-              opacity: isAct ? 1 : 0.8, // Make inactive lines much more visible
-              filter: 'blur(0px)', // Completely remove blur
-              transform: 'translate3d(0,0,0) scale(1)', // Reset scale to neutral
-              transition: 'all 0.3s ease-out', // Smooth transition into "reading mode"
-              willChange: 'opacity, filter, transform'
-          };
-      }
-
-      if (performanceMode) {
-          // Simplified styles for performance mode
-           return {
-              opacity: isAct ? 1 : 0.4,
-              transform: isAct ? 'scale(1.05)' : 'scale(1)',
-              transition: 'opacity 0.2s, transform 0.2s',
-          };
-      }
-
-      // Common optimization: GPU acceleration hint
-      const baseTransform = 'translate3d(0,0,0)'; 
-
-      if (variant !== 'immersive') {
-          return {
-              opacity: isAct ? 1 : 0.35,
-              // Using blur is expensive, but requested. We keep it moderate.
-              filter: isAct ? 'blur(0px)' : 'blur(4px)',
-              transform: `${baseTransform} ${isAct ? 'scale(1.05) translateX(10px)' : 'scale(1) translateX(0)'}`,
-              transition: 'opacity 0.5s ease-out, transform 0.5s ease-out, filter 0.5s ease-out',
-              willChange: 'transform, opacity, filter' // Hint to browser
-          };
-      }
-
-      const distance = Math.abs(index - activeIdx);
-      
-      let opacity = 0;
-      let blur = '10px';
-      let transform = `${baseTransform} scale(1) translateX(0)`;
-
-      if (isAct) {
-          opacity = 1;
-          blur = '0px';
-          transform = `${baseTransform} scale(1.05) translateX(10px)`;
-      } else if (distance === 1) {
-          opacity = 0.5;
-          blur = '2px';
-      }
-
-      return { 
-          opacity, 
-          filter: `blur(${blur})`, 
-          transform,
-          transition: 'opacity 0.4s ease-out, transform 0.4s ease-out, filter 0.4s ease-out',
-          willChange: 'transform, opacity, filter'
+    // 1. User Interaction Overrides: Clear visibility
+    if (isUserScrolling) {
+      return {
+        opacity: isAct ? 1 : 0.8, // Make inactive lines much more visible
+        filter: 'blur(0px)', // Completely remove blur
+        transform: 'translate3d(0,0,0) scale(1)', // Reset scale to neutral
+        transition: 'all 0.3s ease-out', // Smooth transition into "reading mode"
+        willChange: 'opacity, filter, transform'
       };
+    }
+
+    if (performanceMode) {
+      // Simplified styles for performance mode
+      return {
+        opacity: isAct ? 1 : 0.4,
+        transform: isAct ? 'scale(1.05)' : 'scale(1)',
+        transition: 'opacity 0.2s, transform 0.2s',
+      };
+    }
+
+    // Common optimization: GPU acceleration hint
+    const baseTransform = 'translate3d(0,0,0)';
+
+    if (variant !== 'immersive') {
+      return {
+        opacity: isAct ? 1 : 0.35,
+        // Using blur is expensive, but requested. We keep it moderate.
+        filter: isAct ? 'blur(0px)' : 'blur(4px)',
+        transform: `${baseTransform} ${isAct ? 'scale(1.05) translateX(10px)' : 'scale(1) translateX(0)'}`,
+        transition: 'opacity 0.5s ease-out, transform 0.5s ease-out, filter 0.5s ease-out',
+        willChange: 'transform, opacity, filter' // Hint to browser
+      };
+    }
+
+    const distance = Math.abs(index - activeIdx);
+
+    let opacity = 0;
+    let blur = '10px';
+    let transform = `${baseTransform} scale(1) translateX(0)`;
+
+    if (isAct) {
+      opacity = 1;
+      blur = '0px';
+      transform = `${baseTransform} scale(1.05) translateX(10px)`;
+    } else if (distance === 1) {
+      opacity = 0.5;
+      blur = '2px';
+    }
+
+    return {
+      opacity,
+      filter: `blur(${blur})`,
+      transform,
+      transition: 'opacity 0.4s ease-out, transform 0.4s ease-out, filter 0.4s ease-out',
+      willChange: 'transform, opacity, filter'
+    };
   };
 
   if (!lyrics) {
@@ -288,58 +288,58 @@ const LyricsView: React.FC<LyricsViewProps> = ({
 
     return (
       <div className="w-full h-full flex flex-col items-center justify-center text-center p-6 animate-scale-fade-in">
-         <div className={`w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 ${performanceMode ? '' : 'animate-pulse-slow'}`}>
-            <Music size={40} className="text-white/20" />
-         </div>
-         <h3 className="text-xl font-bold text-white mb-2">No Lyrics Found</h3>
-         <p className="text-white/40 mb-8 max-w-xs text-sm">Add a .lrc file to sing along.</p>
-         
-         <label 
-            className="cursor-pointer group flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white text-white hover:text-black rounded-full transition-all duration-300 active:scale-95 border border-white/10"
-            style={{ boxShadow: performanceMode ? 'none' : `0 0 20px -5px ${accentColor}40` }}
-         >
-            <input 
-               type="file" 
-               accept=".lrc,.txt"
-               className="hidden" 
-               onChange={onImportLyrics}
-            />
-            <Upload size={18} />
-            <span className="text-sm font-bold">Import Lyrics</span>
-         </label>
+        <div className={`w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6 ${performanceMode ? '' : 'animate-pulse-slow'}`}>
+          <Music size={40} className="text-white/20" />
+        </div>
+        <h3 className="text-xl font-bold text-white mb-2">No Lyrics Found</h3>
+        <p className="text-white/40 mb-8 max-w-xs text-sm">Add a .lrc file to sing along.</p>
+
+        <label
+          className="cursor-pointer group flex items-center gap-3 px-6 py-3 bg-white/10 hover:bg-white text-white hover:text-black rounded-full transition-all duration-300 active:scale-95 border border-white/10"
+          style={{ boxShadow: performanceMode ? 'none' : `0 0 20px -5px ${accentColor}40` }}
+        >
+          <input
+            type="file"
+            accept=".lrc,.txt"
+            className="hidden"
+            onChange={onImportLyrics}
+          />
+          <Upload size={18} />
+          <span className="text-sm font-bold">Import Lyrics</span>
+        </label>
       </div>
     );
   }
 
   if (parsedLyrics.length === 0 && lyrics) {
-      return (
-         <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar flex items-center justify-center">
-             <pre className="whitespace-pre-wrap font-sans text-white/80 text-lg md:text-2xl font-medium leading-relaxed text-center opacity-80">
-                 {lyrics}
-             </pre>
-         </div>
-      )
+    return (
+      <div className="w-full h-full p-8 overflow-y-auto custom-scrollbar flex items-center justify-center">
+        <pre className="whitespace-pre-wrap font-sans text-white/80 text-lg md:text-2xl font-medium leading-relaxed text-center opacity-80">
+          {lyrics}
+        </pre>
+      </div>
+    )
   }
 
   return (
-    <div 
-        ref={containerRef}
-        className={`w-full h-full relative ${variant === 'immersive' || performanceMode ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}`}
-        // Attach interaction handlers to the container
-        onWheel={handleUserInteraction}
-        onTouchMove={handleUserInteraction}
-        onPointerDown={handleUserInteraction}
-        style={{ 
-          scrollBehavior: performanceMode ? 'smooth' : 'auto', // Important: Disable native smooth scrolling to let Physics take over (unless in performance mode)
-          maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)' 
-        }}
+    <div
+      ref={containerRef}
+      className={`w-full h-full relative ${variant === 'immersive' || performanceMode ? 'overflow-hidden' : 'overflow-y-auto no-scrollbar'}`}
+      // Attach interaction handlers to the container
+      onWheel={handleUserInteraction}
+      onTouchMove={handleUserInteraction}
+      onPointerDown={handleUserInteraction}
+      style={{
+        scrollBehavior: performanceMode ? 'smooth' : 'auto', // Important: Disable native smooth scrolling to let Physics take over (unless in performance mode)
+        maskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)',
+        WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, black 15%, black 85%, transparent 100%)'
+      }}
     >
       <div className={`flex flex-col px-6 transition-all duration-500 ease-elegant ${getSpacing()}`}>
         {parsedLyrics.map((line, index) => {
           const isActive = index === activeIndex;
           const style = getLineStyle(index, activeIndex, isActive);
-          
+
           return (
             <div
               key={index}
@@ -352,27 +352,27 @@ const LyricsView: React.FC<LyricsViewProps> = ({
               className="group cursor-pointer origin-left select-none flex flex-col items-start"
               style={style}
             >
-              <p 
+              <p
                 className={`font-bold leading-tight tracking-tight transition-all duration-300 ${getTextSize(isActive)}`}
                 style={{
-                    color: isActive ? '#fff' : 'rgba(255,255,255,0.8)',
-                    textShadow: isActive && !performanceMode && !isUserScrolling ? `0 0 40px ${accentColor}60` : 'none',
+                  color: isActive ? '#fff' : 'rgba(255,255,255,0.8)',
+                  textShadow: isActive && !performanceMode && !isUserScrolling ? `0 0 40px ${accentColor}60` : 'none',
                 }}
               >
                 {line.text}
               </p>
-              
-              <div 
+
+              <div
                 className={`mt-4 h-[3px] rounded-full bg-white/10 overflow-hidden transition-all duration-700 ease-out ${isActive ? 'w-24 opacity-100' : 'w-0 opacity-0'}`}
               >
-                 <div 
-                    className="h-full rounded-full transition-all ease-linear"
-                    style={{ 
-                        width: `${isActive ? lineProgress * 100 : 0}%`, 
-                        backgroundColor: accentColor,
-                        transitionDuration: '250ms' 
-                    }}
-                 />
+                <div
+                  className="h-full rounded-full transition-all ease-linear"
+                  style={{
+                    width: `${isActive ? lineProgress * 100 : 0}%`,
+                    backgroundColor: accentColor,
+                    transitionDuration: '250ms'
+                  }}
+                />
               </div>
             </div>
           );

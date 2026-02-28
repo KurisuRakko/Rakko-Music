@@ -9,9 +9,10 @@ interface SettingsProps {
   settings: AppSettings;
   onUpdateSettings: (newSettings: AppSettings) => void;
   onClearAllSongs?: () => void;
+  pairingCode?: string;
 }
 
-const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdateSettings, onClearAllSongs }) => {
+const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdateSettings, onClearAllSongs, pairingCode }) => {
   const [shouldRender, setShouldRender] = useState(false);
   const [isAnimatingIn, setIsAnimatingIn] = useState(false);
 
@@ -79,6 +80,23 @@ const Settings: React.FC<SettingsProps> = ({ isOpen, onClose, settings, onUpdate
           </div>
 
           <div className="space-y-6">
+
+            {/* Remote Control Section */}
+            {pairingCode && (
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">Remote Control</h3>
+                <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 transition-all hover:bg-white/10 hover:scale-[1.02] duration-300">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Pairing Code</h3>
+                    <p className="text-xs text-white/40">Enter on other device to connect</p>
+                  </div>
+                  <div className="text-2xl font-mono font-bold tracking-widest px-3 py-1 bg-black/20 rounded-lg select-text" style={{ color: settings.accentColor }}>
+                    {pairingCode}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Performance Section */}
             <div className="space-y-3">
               <h3 className="text-xs font-bold text-white/40 uppercase tracking-widest">System</h3>

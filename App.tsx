@@ -2,7 +2,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Song, AudioState, AppSettings, AppMode } from './types';
 import { WALLPAPER_URL, DEFAULT_ACCENT_COLOR, DEFAULT_SETTINGS } from './constants';
-import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics, matchVideos, VideoFile } from './utils';
+import { formatTime, getFileNameWithoutExtension, extractAlbumArt, parseMusicInfo, readFileAsText, matchLyrics, matchVideos, VideoFile, parseLrc } from './utils';
 import { saveSong, removeSong as removeSongFromStorage, loadAllSongs, clearAllSongs } from './utils/songStorage';
 import Controls from './components/Controls';
 import Playlist from './components/Playlist';
@@ -13,9 +13,10 @@ import ShelfView from './components/ShelfView';
 import ModeControls from './components/ModeControls';
 import { ListMusic, Settings as SettingsIcon, Disc, Mic2, Music2, Pause, Play, Upload, FileMusic, Video, X } from 'lucide-react';
 import { usePresentationSync } from './hooks/usePresentationSync';
-import ControllerView from './components/ControllerView';
 import AppBackground from './components/AppBackground';
 import MysteryCodeModal from './components/MysteryCodeModal';
+import InterconnectView from './components/InterconnectView';
+import { useRakkoInterconnect } from './RakkoInterconnect/useRakkoInterconnect';
 
 type DesktopViewMode = 'library' | 'lyrics';
 
@@ -87,6 +88,41 @@ const App: React.FC = () => {
 
   // Mystery Code Modal
   const [isMysteryCodeOpen, setIsMysteryCodeOpen] = useState(false);
+
+  // --- Rakko Interconnect Logic (Lyrics Calculation) ---
+  const [currentLyric, setCurrentLyric] = useState('');
+  const [nextLyric, setNextLyric] = useState('');
+
+  // Memoize parsed lyrics
+  const parsedLyrics = React.useMemo(() => {
+    return currentSong?.lyrics ? parseLrc(currentSong.lyrics) : [];
+  }, [currentSong?.lyrics]);
+
+  // Update current/next lyric based on time
+  useEffect(() => {
+    if (parsedLyrics.length === 0) {
+      if (currentLyric) setCurrentLyric('');
+      if (nextLyric) setNextLyric('');
+      return;
+    }
+
+    const time = audioState.currentTime;
+    let activeIndex = -1;
+    // Simple linear search is fast enough for typical lyric counts
+    for (let i = 0; i < parsedLyrics.length; i++) {
+      if (parsedLyrics[i].time <= time) {
+        activeIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    const curr = activeIndex !== -1 ? parsedLyrics[activeIndex].text : '';
+    const next = activeIndex + 1 < parsedLyrics.length ? parsedLyrics[activeIndex + 1].text : '';
+
+    if (curr !== currentLyric) setCurrentLyric(curr);
+    if (next !== nextLyric) setNextLyric(next);
+  }, [parsedLyrics, audioState.currentTime]);
 
   // --- Refs ---
   const audioRef = useRef<HTMLAudioElement>(new Audio());
@@ -587,6 +623,11 @@ const App: React.FC = () => {
     });
   };
 
+  // --- Playlist Queue Sync ---
+  const handleQueueUpdate = useCallback((newQueue: Song[]) => {
+    setPlaybackQueue(newQueue);
+  }, []);
+
   const toggleDesktopView = (mode: DesktopViewMode) => {
     setDesktopViewMode(mode);
   };
@@ -706,19 +747,27 @@ const App: React.FC = () => {
     }
   });
 
+  // --- Rakko Interconnect Service ---
+  // Initialize service for broadcasting (Master) or receiving (Slave via View)
+  // We use the hook here to ensure the service is running.
+  // If isController is true, we act as Slave (View handles it).
+  // If isController is false, we act as Master (broadcasts state).
+  const { pairingCode } = useRakkoInterconnect({
+    enabled: true, // Always keep service alive
+    role: isController ? 'slave' : 'master',
+    deviceName: isController ? 'Rakko Controller' : 'Rakko Player',
+    // Master Props (ignored if role is slave)
+    currentSong: !isController ? currentSong : null,
+    audioState: !isController ? audioState : undefined,
+    currentLyric: !isController ? currentLyric : undefined,
+    nextLyric: !isController ? nextLyric : undefined,
+  });
+
   if (isController) {
     return (
-      <ControllerView
-        currentSong={syncedSong}
-        currentCover={syncedCover}
-        audioState={syncedAudioState}
-        songs={syncedSongs}
-        sendCommand={sendCommand}
-        accentColor={settings.accentColor} // Note: Settings not synced yet, using default/local. Can sync later.
-        lastSyncTime={lastSyncTime}
-        settings={syncedSettings || settings} // Use synced settings if available, else local
-        sendPing={sendPing}
-        lastPongTime={lastPongTime}
+      <InterconnectView
+        accentColor={settings.accentColor}
+        deviceName="Rakko Controller"
       />
     );
   }
@@ -737,9 +786,9 @@ const App: React.FC = () => {
 
       {/* === LOADING SCREEN === */}
       <div
-        className={`fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center transition-all duration-1000 ease-[cubic-bezier(0.22,1,0.36,1)] ${isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none scale-110'}`}
+        className={`fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center transition-all duration-1000 ease-elegant ${isLoading ? 'opacity-100' : 'opacity-0 pointer-events-none scale-110'}`}
       >
-        <div className="relative">
+        <div className="relative animate-scale-in">
           <div className="absolute inset-0 bg-white/20 blur-3xl rounded-full opacity-10 animate-pulse"></div>
           <div className="relative w-16 h-16">
             <div className="absolute inset-0 rounded-full border-[3px] border-white/5"></div>
@@ -861,7 +910,7 @@ const App: React.FC = () => {
       />
 
       {/* === MAIN LAYOUT CONTAINER === */}
-      <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ${(isCoverFlow || isShelf) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+      <div className={`relative z-10 w-full h-full flex flex-col md:flex-row transition-opacity duration-500 ease-elegant ${(isCoverFlow || isShelf) ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
 
         {/* === LEFT PANEL: Player === */}
         <div className={`
@@ -872,7 +921,7 @@ const App: React.FC = () => {
           }
         `}>
           {/* Logo Header (Normal Mode Only) */}
-          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+          <div className={`absolute top-0 left-0 w-full p-6 md:p-8 flex justify-between items-center z-20 transition-opacity duration-500 ease-elegant ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
             <div className="flex items-center gap-2 text-white/90">
               <div className={`p-2 rounded-lg bg-white/10 backdrop-blur-md shadow-inner`}>
                 <Music2 size={20} style={{ color: settings.accentColor }} />
@@ -903,12 +952,12 @@ const App: React.FC = () => {
                    ${isImmersive ? 'w-16 h-16 rounded-lg mb-0 flex-shrink-0' : 'w-full max-w-md aspect-square rounded-[2.5rem] mb-12 hover:scale-[1.02]'}
                `}>
               {!settings.performanceMode && (
-                <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ${isImmersive ? 'opacity-0' : 'opacity-40 animate-pulse-slow'}`} style={{ backgroundColor: settings.accentColor }}></div>
+                <div className={`absolute inset-0 blur-[60px] rounded-full transition-all duration-1000 ease-elegant ${isImmersive ? 'opacity-0' : 'opacity-40 animate-pulse-slow'}`} style={{ backgroundColor: settings.accentColor }}></div>
               )}
 
-              <div className={`w-full h-full overflow-hidden border border-white/10 bg-black/20 relative z-10 transition-all duration-1000 ${isImmersive ? 'rounded-lg' : 'rounded-[2rem] md:rounded-[2.5rem]'}`}>
+              <div className={`w-full h-full overflow-hidden border border-white/10 bg-black/20 relative z-10 transition-all duration-1000 ease-elegant ${isImmersive ? 'rounded-lg' : 'rounded-[2rem] md:rounded-[2.5rem]'}`}>
                 {currentSong ? (
-                  <div key={currentSong.id} className="w-full h-full animate-scale-fade-in">
+                  <div key={currentSong.id} className="w-full h-full animate-scale-in">
                     {currentCover ? (
                       <div className="w-full h-full bg-cover bg-center" style={{ backgroundImage: `url(${currentCover})` }} />
                     ) : (
@@ -928,17 +977,17 @@ const App: React.FC = () => {
             {/* Track Info */}
             <div className={`transition-all duration-1000 ease-elegant flex flex-col ${isImmersive ? 'text-left items-start flex-1 overflow-hidden' : 'text-center items-center w-full mb-8'}`}>
               <div className="flex items-center gap-2 justify-center w-full">
-                <h1 className={`font-bold text-white ${!settings.performanceMode ? 'drop-shadow-lg' : ''} truncate transition-all duration-1000 ${isImmersive ? 'text-lg w-full text-left' : 'text-2xl md:text-4xl max-w-full'}`}>
+                <h1 className={`font-bold text-white ${!settings.performanceMode ? 'drop-shadow-lg' : ''} truncate transition-all duration-1000 ease-elegant ${isImmersive ? 'text-lg w-full text-left' : 'text-2xl md:text-4xl max-w-full'}`}>
                   {currentSong?.metadata?.title || currentSong?.name || "Ready to Play"}
                 </h1>
                 {!isImmersive && currentSong?.metadata?.version && (
-                  <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white/90 border border-white/10 whitespace-nowrap">
+                  <span className="hidden md:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide bg-white/20 text-white/90 border border-white/10 whitespace-nowrap animate-fade-in-up delay-75">
                     {currentSong.metadata.version}
                   </span>
                 )}
               </div>
 
-              <div className={`flex items-center gap-2 truncate w-full transition-all duration-1000 ${isImmersive ? 'justify-start' : 'justify-center'}`}>
+              <div className={`flex items-center gap-2 truncate w-full transition-all duration-1000 ease-elegant ${isImmersive ? 'justify-start' : 'justify-center'}`}>
                 <p className={`font-medium ${isImmersive ? 'text-sm text-white/60' : 'text-lg text-white/60'}`}>
                   {currentSong?.metadata?.artists.join(', ') || currentSong?.artist || "Rakko Music"}
                 </p>
@@ -987,18 +1036,18 @@ const App: React.FC = () => {
            ${!isImmersive && !isMobileLibraryOpen ? 'translate-x-full md:translate-x-0' : 'translate-x-0'}
         `}>
           {/* Right Header (Desktop Actions) */}
-          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 opacity-100 pointer-events-auto`}>
+          <div className={`flex justify-between items-center p-6 md:p-8 min-h-[88px] relative z-50 transition-opacity duration-500 ease-elegant opacity-100 pointer-events-auto`}>
             <button onClick={() => {
               setIsMobileLibraryOpen(false);
             }} className={`md:hidden text-white/50 hover:text-white transition-opacity ${isImmersive ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
               Close
             </button>
 
-            <div className={`hidden md:flex bg-black/20 p-1 rounded-full backdrop-blur-md border border-white/5 transition-all duration-500 ${isImmersive ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`}>
-              <button onClick={() => toggleDesktopView('library')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'library' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
+            <div className={`hidden md:flex bg-black/20 p-1 rounded-full backdrop-blur-md border border-white/5 transition-all duration-500 ease-spring ${isImmersive ? 'opacity-0 -translate-y-4 pointer-events-none' : 'opacity-100 translate-y-0'}`}>
+              <button onClick={() => toggleDesktopView('library')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-spring ${desktopViewMode === 'library' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
                 <ListMusic size={14} /> Library
               </button>
-              <button onClick={() => toggleDesktopView('lyrics')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ${desktopViewMode === 'lyrics' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
+              <button onClick={() => toggleDesktopView('lyrics')} className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all duration-300 ease-spring ${desktopViewMode === 'lyrics' ? 'bg-white/10 text-white shadow-lg scale-105' : 'text-white/40 hover:text-white/80'}`}>
                 <Mic2 size={14} /> Lyrics
               </button>
             </div>
@@ -1030,9 +1079,9 @@ const App: React.FC = () => {
                 onRemoveSong={handleRemoveSong}
                 onUpdateLyrics={handleUpdateLyrics}
                 onReorder={handleReorder}
-
                 accentColor={settings.accentColor}
                 onOpenMysteryCode={() => setIsMysteryCodeOpen(true)}
+                onQueueUpdate={handleQueueUpdate}
               />
             </div>
 
@@ -1055,7 +1104,7 @@ const App: React.FC = () => {
           {/* Settings Button */}
           <button
             onClick={() => setShowSettings(true)}
-            className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive || isIdle ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
+            className={`absolute bottom-6 right-6 z-40 p-3 rounded-full bg-black/40 hover:bg-white text-white/50 hover:text-black transition-all duration-300 ease-spring hover:rotate-45 backdrop-blur-xl border border-white/5 shadow-lg ${isImmersive || isIdle ? 'opacity-0 pointer-events-none translate-y-10' : 'opacity-100 translate-y-0'}`}>
             <SettingsIcon size={20} />
           </button>
         </div>
@@ -1098,6 +1147,7 @@ const App: React.FC = () => {
           onClose={() => setShowSettings(false)}
           settings={settings}
           onUpdateSettings={setSettings}
+          pairingCode={pairingCode}
           onClearAllSongs={() => {
             clearAllSongs().then(() => {
               setSongs([]);
